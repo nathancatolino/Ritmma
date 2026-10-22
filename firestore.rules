@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Accounts collection
+    match /accounts/{userId} {
+      allow get: if isValidId(userId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(userId) && isOwner(userId);
+      allow update: if isValidId(userId) && isOwner(userId);
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    // PatientData collection
+    match /patientData/{patientId} {
+      allow get: if isValidId(patientId) && (
+        isOwner(patientId) || 
+        (isSignedIn() && exists(/databases/$(database)/documents/links/$(patientId + "_" + request.auth.uid)))
+      );
+      allow list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        exists(/databases/$(database)/documents/links/$(resource.data.patientId + "_" + request.auth.uid))
+      );
+      allow create: if isValidId(patientId) && isOwner(patientId);
+      allow update: if isValidId(patientId) && isOwner(patientId);
+      allow delete: if isValidId(patientId) && isOwner(patientId);
+    }
+
+    // Links collection
+    match /links/{linkId} {
+      allow get: if isValidId(linkId) && isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.doctorId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.doctorId == request.auth.uid
+      );
+      allow create: if isValidId(linkId) && isSignedIn() && (
+        request.resource.data.patientId == request.auth.uid || 
+        request.resource.data.doctorId == request.auth.uid
+      );
+      allow update: if isValidId(linkId) && isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.doctorId == request.auth.uid
+      );
+      allow delete: if isValidId(linkId) && isSignedIn() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.doctorId == request.auth.uid
+      );
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isSignedIn() && (
+        resource.data.toUserId == request.auth.uid || 
+        resource.data.fromUserId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        resource.data.toUserId == request.auth.uid || 
+        resource.data.fromUserId == request.auth.uid
+      );
+      allow create: if isValidId(notificationId) && isSignedIn() && (
+        request.resource.data.fromUserId == request.auth.uid
+      );
+      allow update: if isValidId(notificationId) && isSignedIn() && (
+        resource.data.toUserId == request.auth.uid || 
+        resource.data.fromUserId == request.auth.uid
+      );
+      allow delete: if isValidId(notificationId) && isSignedIn() && (
+        resource.data.toUserId == request.auth.uid || 
+        resource.data.fromUserId == request.auth.uid
+      );
+    }
+
+    // Test heartbeat connection
+    match /test/{testId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+  }
+}

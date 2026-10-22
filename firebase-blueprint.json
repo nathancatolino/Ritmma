@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Account",
+      "description": "User profile information for patients and clinicians",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Unique user account ID" },
+        "role": { "type": "string", "enum": ["patient", "doctor"], "description": "Role in the clinical platform" },
+        "name": { "type": "string", "maxLength": 150, "description": "Full name of the patient or clinician" },
+        "email": { "type": "string", "maxLength": 150, "description": "Contact email address" },
+        "doctorCode": { "type": "string", "maxLength": 30, "description": "Optional invitation code for doctors" },
+        "specialty": { "type": "string", "maxLength": 100, "description": "Medical specialty" },
+        "crm": { "type": "object", "description": "Council registration details" },
+        "gender": { "type": "string", "enum": ["M", "F", "Outro", null], "description": "Biological sex / gender" },
+        "onboardingDone": { "type": "boolean", "description": "Whether onboarding has been completed" },
+        "lgpd": { "type": "object", "description": "LGPD consent status and timestamp" },
+        "subscription": { "type": "object", "description": "Subscription tier metadata" },
+        "contact": { "type": "object", "description": "Public contact details" },
+        "reminderOptIn": { "type": "boolean", "description": "Opt-in for reminders" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" }
+      },
+      "required": ["id", "role", "name"]
+    },
+    "PatientData": {
+      "title": "PatientData",
+      "description": "Clinical symptom records, daily logs, and metrics for a patient",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "ID of the patient" },
+        "diagnoses": { "type": "object", "description": "Active clinical diagnoses map" },
+        "gender": { "type": "string", "description": "Biological sex" },
+        "hormoneRelevant": { "type": "boolean", "description": "Whether hormonal tracking is enabled" },
+        "height": { "type": "number", "description": "Patient height in cm" },
+        "weight": { "type": "number", "description": "Patient weight in kg" },
+        "birthDate": { "type": "string", "description": "Date of birth" },
+        "baseline": { "type": "object", "description": "Baseline clinical metrics" },
+        "periodicMetrics": { "type": "array", "description": "Standardized questionnaire metrics (PHQ9, GAD7, etc)" },
+        "flareAlerts": { "type": "array", "description": "Historical flare risk alerts" },
+        "dailyLogs": { "type": "array", "description": "Daily symptom and wearable logs" },
+        "medications": { "type": "array", "description": "Current medication regimens" },
+        "scheduledEvents": { "type": "array", "description": "Multidisciplinary therapy appointments" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last synchronization" }
+      },
+      "required": ["patientId"]
+    },
+    "Link": {
+      "title": "Link",
+      "description": "Clinical connection between patient and clinician",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Unique link identifier" },
+        "patientId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Patient user ID" },
+        "doctorId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Doctor user ID" },
+        "status": { "type": "string", "enum": ["pending", "authorized", "revoked"], "description": "Authorization status" },
+        "initiatedBy": { "type": "string", "enum": ["patient", "doctor"], "description": "Who initiated the connection" },
+        "createdAt": { "type": "string", "description": "Creation date" }
+      },
+      "required": ["patientId", "doctorId", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notifications and alerts between participants",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Unique notification ID" },
+        "status": { "type": "string", "enum": ["read", "unread"], "description": "Read status" },
+        "createdAt": { "type": "string", "description": "Creation ISO date" },
+        "toUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Recipient user ID" },
+        "fromUserId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Sender user ID" },
+        "type": { "type": "string", "maxLength": 50, "description": "Notification category" },
+        "message": { "type": "string", "maxLength": 1000, "description": "Notification text" },
+        "contactUrl": { "type": "string", "maxLength": 255, "description": "Direct contact or chat URL" }
+      },
+      "required": ["id", "status", "toUserId", "fromUserId", "message"]
+    },
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Heartbeat document to verify Firestore network connectivity",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "description": "Ping status" },
+        "timestamp": { "type": "string", "description": "Ping timestamp" }
+      }
+    }
+  },
+  "firestore": {
+    "/accounts/{userId}": {
+      "schema": "Account",
+      "description": "User account profiles"
+    },
+    "/patientData/{patientId}": {
+      "schema": "PatientData",
+      "description": "Clinical diary records and symptoms for a patient"
+    },
+    "/links/{linkId}": {
+      "schema": "Link",
+      "description": "Sharing authorizations between patient and clinician"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Clinical outreach messages and alerts"
+    },
+    "/test/{testId}": {
+      "schema": "TestConnection",
+      "description": "Connectivity test endpoint"
+    }
+  }
+}

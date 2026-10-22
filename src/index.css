@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-ritmma-navy: #062B63;
+  --color-ritmma-deepnavy: #06275A;
+  --color-ritmma-turquoise: #1FBCC4;
+  --color-ritmma-blue: #3975E3;
+  --color-ritmma-violet: #9251E5;
+  --color-ritmma-gray: #8795AA;
+
+  /* Remap generic teal scale to RITMMA Turquoise */
+  --color-teal-500: #1FBCC4;
+  --color-teal-600: #199EA5;
+  --color-teal-400: #24C4D1;
+  --color-teal-700: #128288;
+  --color-teal-50: #EFFBFC;
+  --color-teal-100: #D3F5F7;
+  --color-teal-900: #0B4549;
+
+  /* Remap generic indigo scale to RITMMA Royal Blue */
+  --color-indigo-600: #3975E3;
+  --color-indigo-500: #4C7FE8;
+  --color-indigo-700: #2C5DC2;
+  --color-indigo-50: #F0F5FE;
+
+  /* Remap generic purple/violet scale to RITMMA Violet */
+  --color-purple-600: #9251E5;
+  --color-purple-500: #9854E8;
+  --color-violet-600: #9251E5;
+  --color-violet-500: #9854E8;
+  --color-violet-50: #F8F3FE;
+}
+
+@utility inp {
+  @apply w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#1FBCC4] focus:ring-1 focus:ring-[#1FBCC4] transition-all;
+}
+
+@utility form-input {
+  @apply w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-[#1FBCC4] focus:ring-1 focus:ring-[#1FBCC4] transition-all;
+}
+
+@utility sym {
+  @apply flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 dark:text-slate-300;
+}
+
+@utility bg-ritmma-gradient {
+  background: linear-gradient(135deg, #1FBCC4 0%, #3975E3 50%, #9251E5 100%);
+}
+
+@utility text-ritmma-gradient {
+  background: linear-gradient(135deg, #1FBCC4 0%, #3975E3 50%, #9251E5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Global Dark Mode Contrast Balance Overrides */
+.dark {
+  color-scheme: dark;
+}
+
+/* Redefine light-themed values to balanced dark-themed values when inside dark mode */
+.dark .bg-white {
+  background-color: #0f172a !important; /* Soft deep slate card background */
+}
+.dark .text-slate-900 {
+  color: #ffffff !important; /* Pure white for titles */
+}
+.dark .text-slate-800 {
+  color: #f8fafc !important; /* Bright readable text for headers */
+}
+.dark .text-slate-700 {
+  color: #cbd5e1 !important; /* Clear readable content text */
+}
+.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-500 {
+  color: #94a3b8 !important; /* Secondary readable captions */
+}
+.dark .text-slate-400 {
+  color: #94a3b8 !important; /* Standard grey info labels */
+}
+.dark .bg-slate-50 {
+  background-color: #020617 !important; /* Smooth deep layout background */
+}
+.dark .bg-slate-100 {
+  background-color: #1e293b !important; /* Sub-card background */
+}
+.dark .border-slate-50,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: #1e293b !important; /* Soft, balanced dark borders */
+}
+.dark .hover\:bg-slate-50:hover {
+  background-color: #1e293b !important;
+}
+
+/* Print CSS for PDF Report Export */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #rprt, #rprt * {
+    visibility: visible;
+  }
+  #rprt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

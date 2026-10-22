@@ -1,0 +1,10 @@
+{
+  "name": "RITMA - Rastreie. Entenda. Controle.",
+  "description": "RITMA: Rastreie. Entenda. Controle. Diário de dor crônica e acompanhamento clínico inteligente.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
