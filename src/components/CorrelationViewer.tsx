@@ -19,6 +19,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import { InfoTooltip } from './Tooltip';
 import { 
   TrendingUp, 
   HelpCircle, 
@@ -255,8 +256,8 @@ export const CorrelationViewer: React.FC<CorrelationViewerProps> = ({ logs }) =>
 
     if (absR < 0.2) {
       return {
-        level: 'Sem correlação linear',
-        desc: `A variação de "${varA.label}" parece não influenciar de forma linear ou direta o nível de "${varB.label}" nos últimos 14 dias (r = ${correlation.toFixed(2)}).`,
+        level: 'Sem correlação linear observada',
+        desc: `"${varA.label}" e "${varB.label}" não apresentaram co-variação linear significativa nos últimos 14 dias (r = ${correlation.toFixed(2)}, N=${validPairsCount} pares de dados).`,
         colorClass: 'text-slate-600 dark:text-slate-400',
         bgClass: 'bg-slate-50 dark:bg-slate-950/30 border-slate-100 dark:border-slate-800/80'
       };
@@ -265,15 +266,15 @@ export const CorrelationViewer: React.FC<CorrelationViewerProps> = ({ logs }) =>
     if (isPositive) {
       if (absR >= 0.6) {
         return {
-          level: 'Forte Correlação Positiva',
-          desc: `Existe uma relação direta e marcante (r = +${correlation.toFixed(2)}): quando "${varA.label}" sobe, o indicador "${varB.label}" também tende a aumentar de forma perceptível.`,
+          level: 'Forte Associação Positiva',
+          desc: `Co-variação concordante expressiva (r = +${correlation.toFixed(2)}, N=${validPairsCount}): dias com valores mais altos de "${varA.label}" coincidiram frequentemente com níveis elevados de "${varB.label}".`,
           colorClass: 'text-rose-600 dark:text-rose-400',
           bgClass: 'bg-rose-50/50 dark:bg-rose-950/10 border-rose-150/40 dark:border-rose-900/30'
         };
       } else {
         return {
-          level: 'Correlação Positiva Moderada',
-          desc: `Existe uma tendência sutil (r = +${correlation.toFixed(2)}): elevações em "${varA.label}" costumam acompanhar aumentos graduais em "${varB.label}".`,
+          level: 'Associação Positiva Moderada',
+          desc: `Tendência concordante sutil (r = +${correlation.toFixed(2)}, N=${validPairsCount}): aumentos em "${varA.label}" acompanharam discretas elevações em "${varB.label}".`,
           colorClass: 'text-amber-600 dark:text-amber-400',
           bgClass: 'bg-amber-50/50 dark:bg-amber-950/10 border-amber-150/40 dark:border-amber-900/30'
         };
@@ -281,15 +282,15 @@ export const CorrelationViewer: React.FC<CorrelationViewerProps> = ({ logs }) =>
     } else {
       if (absR >= 0.6) {
         return {
-          level: 'Forte Correlação Inversa',
-          desc: `Observamos um comportamento oposto claro (r = ${correlation.toFixed(2)}): quando "${varA.label}" diminui (ex: queda na temperatura ou pressão), o indicador "${varB.label}" tende a subir significativamente.`,
+          level: 'Forte Associação Inversa',
+          desc: `Co-variação oposta expressiva (r = ${correlation.toFixed(2)}, N=${validPairsCount}): dias com redução em "${varA.label}" coincidiram frequentemente com maiores pontuações em "${varB.label}".`,
           colorClass: 'text-sky-600 dark:text-sky-400',
           bgClass: 'bg-sky-50/50 dark:bg-sky-950/10 border-sky-150/40 dark:border-sky-900/30'
         };
       } else {
         return {
-          level: 'Correlação Inversa Moderada',
-          desc: `Existe um padrão de sutil oposição (r = ${correlation.toFixed(2)}): reduções em "${varA.label}" coincidem frequentemente com elevações brandas em "${varB.label}".`,
+          level: 'Associação Inversa Moderada',
+          desc: `Tendência oposta sutil (r = ${correlation.toFixed(2)}, N=${validPairsCount}): declínios em "${varA.label}" acompanharam leves aumentos em "${varB.label}".`,
           colorClass: 'text-teal-600 dark:text-teal-400',
           bgClass: 'bg-teal-50/50 dark:bg-teal-950/10 border-teal-150/40 dark:border-teal-900/30'
         };
@@ -306,6 +307,10 @@ export const CorrelationViewer: React.FC<CorrelationViewerProps> = ({ logs }) =>
           <h3 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <ArrowRightLeft className="w-4 h-4 text-teal-500" />
             Análise Avançada de Sensibilidade (Últimos 14 dias)
+            <InfoTooltip
+              title="Sensibilidade & Gatilhos"
+              content="Calcula o coeficiente estatístico de Pearson (r) cruzando biometria externa (clima, passos, sono) com seus sintomas de dor para apontar gatilhos ambientais."
+            />
           </h3>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium leading-tight">
             Selecione uma variável externa (métrica do relógio ou clima) e compare com seus sintomas reumatológicos.
@@ -322,8 +327,12 @@ export const CorrelationViewer: React.FC<CorrelationViewerProps> = ({ logs }) =>
         
         {/* Variable A Selector */}
         <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Variável Externa ou Fisiológica (Eixo Esquerdo Y)
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <span>Variável Externa ou Fisiológica (Eixo Esquerdo Y)</span>
+            <InfoTooltip
+              title="Variável Externa / Fisiológica"
+              content="Pressão atmosférica, temperatura ambiente, contagem de passos ou horas de sono registradas pelos sensores."
+            />
           </label>
           <div className="relative">
             <select
@@ -342,8 +351,12 @@ export const CorrelationViewer: React.FC<CorrelationViewerProps> = ({ logs }) =>
 
         {/* Variable B Selector */}
         <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-            Sintoma Clínico / Escala de Dor (Eixo Direito Y)
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <span>Sintoma Clínico / Escala de Dor (Eixo Direito Y)</span>
+            <InfoTooltip
+              title="Sintoma Clínico"
+              content="Escala visual numérica de dor (0-10), rigidez matinal ou nível de fadiga preenchido no diário."
+            />
           </label>
           <div className="relative">
             <select
@@ -472,9 +485,14 @@ export const CorrelationViewer: React.FC<CorrelationViewerProps> = ({ logs }) =>
             {correlationInterpretation.desc}
           </p>
           {validPairsCount >= 3 && Math.abs(correlation) >= 0.2 && (
-            <div className="pt-2 flex items-center gap-1.5 text-[10px] text-teal-600 dark:text-teal-400 font-bold">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Análise computada cruzando {validPairsCount} pontos de dados diários concomitantes.</span>
+            <div className="pt-2 flex flex-col gap-1 text-[10px] text-teal-700 dark:text-teal-400 font-semibold">
+              <div className="flex items-center gap-1.5 font-bold">
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Análise computada cruzando {validPairsCount} pontos de dados diários concomitantes.</span>
+              </div>
+              <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-normal italic">
+                * Nota médica: Associação estatística indica concomitância temporal nos registros, não relação comprovada de causalidade.
+              </span>
             </div>
           )}
         </div>

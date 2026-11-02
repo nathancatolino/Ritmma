@@ -1,204 +1,104 @@
-# RITMA — Plano de Otimização da Experiência do Paciente, Monitoramento Clínico e Resolução de Bugs
+# Reformulação e Reorganização da Navegação e Mapa de Dor
 
-Plano abrangente para transformar o RITMA no mais completo diário e dashboard clínico de dor crônica e reumatologia, com foco total na usabilidade do paciente, registro ágil de crises e sintomas, alta legibilidade visual e execução 100% gratuita (sem qualquer custo de nuvem ou API paga).
+Reorganizar a arquitetura de telas do Painel do Paciente no RITMA: isolar o **Mapa de Dor Diário** em sua aba dedicada e exclusiva, transferir o **RITMMA MAP** e os cards de síntese multidimensional para a aba de **Gráficos & Análises**, e simplificar a **Tela Inicial (Início)** com um resumo clínico limpo e atalhos diretos.
 
 ---
 
-## Decisões Confirmadas e Revisão do Usuário
+## Decisões Confirmadas com o Usuário
 
 > [!IMPORTANT]
-> **Decisões alinhadas na Etapa 1:**
-> - **Custo Zero (100% Free)**: Nenhuma dependência de APIs ou modelos pagos. Todos os recursos inteligentes utilizam o nível gratuito do Gemini (`gemini-3.8-flash` e `gemini-3.1-flash-lite`), APIs nativas do navegador (Web Speech API para ditado sem custo, AudioContext para alarmes e retorno sonoro) e persistência gratuita (Firestore Spark + cache local offline resiliente).
-> - **Foco Central no Paciente & Monitoramento de Sintomas**: Reduzir a carga cognitiva e o esforço motor ao preencher o diário (essencial para pacientes em crise de fibromialgia, artrite ou fadiga crônica), com modo de check-in rápido (1 toque), mapa de dor corporal aprimorado com tender points anatômicos precisos, registro inteligente de rigidez matinal, sono e hidratação.
-> - **Dashboard Clínico de Alta Legibilidade (Claro & Escuro)**: Design médico refinado seguindo as diretrizes de SaaS/saúde do AI Studio: contraste WCAG AA, tipografia com números tabulares (`tabular-nums`), ausência de poluição visual (disciplina sem cápsulas redundantes), toques mínimos de 44px e transição perfeita entre modo diurno e noturno repousante.
+> Decisões alinhadas na etapa de clarificação e incorporadas ao plano:
+> - **Aba Dedicada para o Mapa de Dor**: O componente `DailyPainMap` (fluxo em 3 etapas: Áreas, Intensidade, Notas) funcionará como uma tela/aba exclusiva (`bodymap`), eliminando a sobreposição e a repetição de parâmetros na tela inicial.
+> - **RITMMA MAP e Sínteses em Gráficos & Análises**: O gráfico multidimensional de correlação e os 3 cards de síntese (*Qualidade do Sono*, *Frequência de Diário* e *Dor & Fadiga 7d*) serão movidos para a aba de `charts`, centralizando toda a telemetria analítica no local correto.
+> - **Tela Inicial Focada**: A tela `home` exibirá exclusivamente a saudação personalizada com status do dia, o resumo condensado (*Como estou hoje?* com métricas preenchidas), atalhos rápidos diretos para os módulos e a *Dica do Dia*.
 
 ---
 
-## 1. Visão Geral e Conceito Central
+## 1. Visão Geral e Nova Arquitetura de Informação
 
-### O que a aplicação faz
-O **RITMA** é uma plataforma clínica de saúde para acompanhamento e controle de dores crônicas (fibromialgia, espondiloartrites, artrite reumatoide, dor miofascial e síndrome do intestino irritável). Ela conecta o paciente ao seu médico (Dr. Nathan Reumato e equipe multidisciplinar), transformando sensações subjetivas de dor, sono, rigidez e fadiga em dados clínicos estruturados, correlações causais e relatórios objetivos para consulta.
-
-### Público-Alvo e Persona
-- **Pacientes com dor crônica e fadiga**: frequentemente enfrentam névoa mental (*fibrofog*), dor nas mãos para digitar em telas pequenas e dias de crise aguda onde preencher questionários extensos é inviável.
-- **Reumatologistas e equipe multiprofissional**: necessitam de dados organizados em séries temporais, correlações de gatilhos (sono, estresse, hidratação, alimentação) e questionários padronizados (FIQR, BASDAI, PHQ-9, GAD-7) sem perder tempo de consulta decifrando anotações soltas.
-
-### Valor Principal Entregue
-- **Check-in de 1 Minuto no Pior Dia de Crise**: Permite que o paciente registre sua dor e principais fatores mesmo em dias de crise severa sem atrito.
-- **Identificação de Padrões e Gatilhos**: O cruzamento de dados revela o que piora ou alivia a dor (ex.: sono reparador e hidratação vs. estresse e ultraprocessados).
-- **Relatório Médico em PDF/Resumo Clínico Estruturado**: Preparação imediata para a consulta com o Dr. Nathan, economizando tempo e qualificando a conduta médica.
-
----
-
-## 2. Experiência do Usuário e Design Visual
-
-### Fluxos Principais do Usuário
-
-1. **Fluxo do Diário Rápido de Sintomas (Quick Check-in)**:
-   - Acesso com 1 clique a partir da tela inicial.
-   - Escalas analógicas visuais grandes e acessíveis (Dor 0–10, Sono 0–10, Fadiga 0–10, Rigidez Matinal em minutos).
-   - Ditado por voz gratuito via microfone do navegador para quem está com dor nas mãos.
-   - Salvamento automático com confirmação visual suave e atualização instantânea de séries temporais.
-
-2. **Fluxo do Mapa de Dor Corporal (Homúnculo Interativo)**:
-   - Silhueta frontal e dorsal nítida, com seleção de 19 tender points clássicos e articulações periféricas.
-   - Indicação de intensidade da dor por região (leve, moderada, intensa).
-   - Histórico comparativo (ver mapa de ontem vs. hoje ou evolução dos últimos 7 dias).
-
-3. **Fluxo de Métricas Clínicas & PROMs**:
-   - Questionários validados em reumatologia (FIQR, BASDAI, PHQ-9, GAD-7, CSI) com cálculo automático de escores clínicos.
-   - Alertas visuais discretos quando há sinais de pico de crise (*flare-up*) com orientações de autocuidado não-medicamentosas.
-
-4. **Fluxo de Hidratação e Hábitos Diários**:
-   - Meta hídrica visual clara com incrementos rápidos (+250ml, +500ml).
-   - Registro de medicamentos tomados vs. esquecidos, com histórico diário.
-
-### Identidade Visual e Tema
+A tela do paciente passa a ter separação de responsabilidades cristalina, sem duplicação de informações ou poluição visual:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Paleta de Cores e Hierarquia Visual (60-30-10)                        │
-├────────────────────────────────────────────────────────────────────────┤
-│ • 60% Fundo Neutro:                                                    │
-│   - Tema Claro: #F8FAFC (Slate 50) e #FFFFFF puro para cards           │
-│   - Tema Escuro: #0B0F19 (Deep Navy Slate) e #111827 (Gray 900)        │
-│ • 30% Estrutura & Tipografia:                                          │
-│   - Bordas sutis de 1px (border-slate-200 / border-slate-800)          │
-│   - Textos de alta legibilidade (Slate 900 / Slate 100)                │
-│ • 10% Acentos Clínicos:                                                │
-│   - Primário: Azul Clínico Índigo (#4F46E5 / #6366F1)                  │
-│   - Alívio/Normalidade: Verde Esmeralda (#059669)                      │
-│   - Alerta de Crise/Dor: Vermelho Suave (#E11D48)                      │
-│   - Hidratação: Ciano Claro (#0891B2)                                  │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-- **Tipografia**: `Plus Jakarta Sans` para títulos e comandos de ação; `DM Sans` para leitura longa e instruções de saúde; `font-mono tabular-nums` para todas as pontuações de dor, dosagens de remédios, horários e mililitros de água.
-- **Disciplina Anti-Slop**:
-  - Eliminação de cápsulas redundantes e selos repetitivos. Metadados e datas apresentados em texto limpo com separadores tipográficos (`·`).
-  - Sem cartões aninhados dentro de cartões; superfícies com elevação única e divisores sutis.
-  - Alvos de toque grandes ($\ge 48\text{px}$) nos botões principais e nas escalas de dor.
-  - Títulos sem quebras órfãs (`text-wrap: balance`).
-
----
-
-## 3. Decisões Técnicas e Trade-Offs
-
-### 1. Inteligência Artificial 100% Gratuita (Free Tier)
-- **Decisão**: Utilizar exclusivamente o modelo `gemini-3.8-flash` ou `gemini-3.1-flash-lite` no backend Express (`server.ts`) para análise clínica de correlações e geração de resumos empáticos, sem utilizar modelos da categoria paga (como `gemini-4-argon`, `veo` ou `nano-banana`).
-- **Transcrição e Voz**: Utilizar a API nativa do navegador `window.webkitSpeechRecognition` / `SpeechRecognition` no cliente para transcrição por voz instantânea e sem qualquer latência ou cobrança, complementada pelo processamento do Gemini Flash gratuito para estruturação dos dados.
-
-### 2. Persistência Híbrida Offline-First
-- **Decisão**: Armazenamento sincronizado entre Firestore (remixed-firestore-database-id) e LocalStorage/IndexedDB.
-- **Motivo**: Pacientes em crise ou em viagens frequentemente perdem conexão de internet. Os sintomas registrados jamais podem ser perdidos ou cancelados por falhas de rede.
-
-### 3. Modularização de Componentes e Correção de Bugs
-- **Diagnóstico Atual**: O arquivo `PatientView.tsx` possui mais de 4.700 linhas, acumulando lógica de abas, formulários, homúnculo, reprodução de áudio e cálculos estatísticos no mesmo escopo.
-- **Solução Planejada**:
-  1. Extrair sub-visões independentes (`QuickLogModal`, `HydrationWidget`, `CrisisProtocolView`, `ReportExportModal`).
-  2. Corrigir inconsistências de sincronização entre o estado de medicamentos e o diário de sintomas.
-  3. Corrigir os alinhamentos e seleções de pontos anatômicos no `BodyPainMap` para evitar sobreposição de cliques.
-
----
-
-## 4. Arquitetura Técnica e Estratégia de Dados
-
-### Diagrama do Sistema e Fluxo de Dados
-
-```
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                           ARQUITETURA DA APLICAÇÃO                             │
-└────────────────────────────────────────────────────────────────────────────────┘
-
-   ┌──────────────────────────────────────────────────────────────────────────┐
-   │                            CLIENTE (REACT SPA)                           │
-   │                                                                          │
-   │  ┌─────────────────────────┐  ┌──────────────────────────────────────┐   │
-   │  │   Navegação do Paciente │  │           Módulos Clínicos           │   │
-   │  │  • TopBar Acessível     │  │  • Diário de Sintomas (Dor/Sono)     │   │
-   │  │  • Alternador Dark/Light│  │  • Mapa de Dor Corporal (Homúnculo)  │   │
-   │  │  • Bottom Bar (Mobile)  │  │  • Gestão de Medicação & Lembretes   │   │
-   │  │  • Seletor de Perfil    │  │  • Hidratação e Hábitos Diários      │   │
-   │  └───────────┬─────────────┘  │  • Painel de Tendências e PROMs      │   │
-   │              │                └──────────────────┬───────────────────┘   │
-   │              └─────────────────┬─────────────────┘                       │
-   │                                ▼                                         │
-   │              ┌───────────────────────────────────┐                       │
-   │              │   Gerenciador de Estado do App    │                       │
-   │              │  (Sincronização Local + Firestore)│                       │
-   │              └─────────────────┬─────────────────┘                       │
-   └────────────────────────────────┼─────────────────────────────────────────┘
-                                    │ Requisições HTTP (/api/*)
-                                    ▼
-   ┌──────────────────────────────────────────────────────────────────────────┐
-   │                          SERVIDOR NODE / EXPRESS                         │
-   │                                                                          │
-   │  ┌───────────────────────┐  ┌─────────────────────┐  ┌─────────────────┐ │
-   │  │ POST /api/gemini/     │  │ POST /api/gemini/   │  │ Servidor de     │ │
-   │  │ analyze-correlations  │  │ voice-checkin       │  │ Assets Estáticos│ │
-   │  │ (Gemini 3.8 Flash)    │  │ (Gemini 3.8 Flash)  │  │ e Vite dev      │ │
-   │  └───────────┬───────────┘  └──────────┬──────────┘  └─────────────────┘ │
-   └──────────────┼─────────────────────────┼─────────────────────────────────┘
-                  ▼                         ▼
-   ┌──────────────────────────────────────────────────────────────────────────┐
-   │              GOOGLE AI STUDIO / GEMINI FREE TIER API                     │
-   │          (Processamento server-side seguro, sem custo)                   │
-   └──────────────────────────────────────────────────────────────────────────┘
-```
-
-### Entidades de Dados Principais
-
-```typescript
-// Registro Diário do Paciente (DailyLog)
-interface DailyLog {
-  date: string;               // YYYY-MM-DD
-  pain: number;               // 0 a 10 (EVA)
-  worstPain?: number;         // Pico máximo no dia
-  morningStiffnessMinutes?: number; // Duração da rigidez em minutos
-  fatigue: number;            // 0 a 10
-  sleepQuality: number;       // 0 a 10
-  sleepHours?: number;        // Horas dormidas
-  mood: 1 | 2 | 3 | 4 | 5;    // Estado emocional
-  waterIntakeMl: number;      // Consumo hídrico
-  tenderPointsSelected?: string[]; // IDs das regiões com dor ativa
-  medicationsTaken?: { [medId: string]: 'taken' | 'forgotten' | 'skipped' };
-  triggers?: string[];        // Estresse, clima frio, esforço, etc.
-  notes?: string;             // Observações livres ou ditadas
-}
+│                        BARRA SUPERIOR (HEADER)                         │
+│  Logo RITMA │ Indicador de Nuvem │ Notificações (Badge) │ Perfil       │
+└────────────────────────────────────┬───────────────────────────────────┘
+                                     │
+           ┌─────────────────────────┴─────────────────────────┐
+           ▼                                                   ▼
+┌───────────────────────┐                           ┌────────────────────┐
+│      MENU LATERAL     │                           │   BARRA INFERIOR   │
+│  (Desktop / Gaveta)   │                           │      (Mobile)      │
+└──────────┬────────────┘                           └─────────┬──────────┘
+           │                                                  │
+           └─────────────────────────┬────────────────────────┘
+                                     │
+   ┌───────────────────┬─────────────┴───────┬─────────────────┬──────────────────┐
+   ▼                   ▼                     ▼                 ▼                  ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────────┐ ┌──────────────┐ ┌───────────────────┐
+│ 1. INÍCIO    │ │ 2. DIÁRIO    │ │ 3. MAPA DE DOR   │ │ 4. REMÉDIOS  │ │ 5. GRÁFICOS       │
+│ • Status dia │ │ • Sono       │ │ • Etapa 1: Áreas │ │ • Horários   │ │ • RITMMA MAP      │
+│ • Resumo     │ │ • Fadiga     │ │ • Etapa 2: Nível │ │ • Alarmes    │ │ • Painel Síntese  │
+│ • Atalhos    │ │ • Humor      │ │ • Etapa 3: Notas │ │ • Doses      │ │ • Visão 360°      │
+│ • Dica do dia│ │ • Rotina     │ │ • Sem repetições │ │ • Adesão     │ │ • Histórico       │
+└──────────────┘ └──────────────┘ └──────────────────┘ └──────────────┘ └───────────────────┘
 ```
 
 ---
 
-## 5. Fases de Execução do Plano
+## 2. Experiência do Usuário e Telas Detalhadas
 
-1. **Fase 1: Correção de Bugs e Estabilização**:
-   - Ajustar rotas do backend em `server.ts` para o modelo gratuito estável `gemini-3.8-flash`.
-   - Corrigir referências e sincronização de dados no `PatientView` e `PatientDiary`.
-   - Sanar pequenas inconsistências de tipos e alertas no mapa de dor.
+### A. Tela Inicial (Home) — Rápida e Sem Poluição
+- **Banner de Boas-Vindas & Status**: Saudação humanizada com badge de preenchimento de hoje (*Hoje Registrado* ou *Registro Pendente*).
+- **Cartão "Como estou hoje?"**: Indicador visual compacto das variáveis do dia (Dor, Fadiga, Sono, Humor) sem controles complexos de edição embutidos.
+- **Grade de Atalhos Objetivos ("O que registrar?")**:
+  1. **Diário de Sintomas** (Leva para a aba `diary` com sono, fadiga, humor).
+  2. **Mapa de Dor** (Leva diretamente para a aba `bodymap` no novo fluxo guiado).
+  3. **Medicamentos** (Leva para `medications`).
+  4. **Crise SOS** (Abre o fluxo rápido de crises agudas).
+- **Dica do Dia**: Card de recomendação clínica baseada em evidências científicas.
+- **Tendência dos Últimos 7 vs 30 dias**: Indicador discreto de evolução estável/melhora.
 
-2. **Fase 2: Nova Interface e Experiência do Paciente**:
-   - Modernizar o visual para o padrão clínico de alta legibilidade com suporte robusto a tema claro e escuro.
-   - Implementar o componente de **Registro Rápido de 1 Minuto** na página inicial do paciente.
-   - Aperfeiçoar o **Mapa Corporal de Dor** com controles táteis maiores e alternância frente/verso simplificada.
+### B. Aba Exclusiva: Mapa de Dor Diário (`bodymap`)
+- **Tela 100% Limpa e Focada**: Todo o espaço da tela é dedicado à silhueta corporal e às 3 etapas clínicas.
+- **Nenhum Card Duplicado**: Removidos cards de sono, frequência, gráficos dispersos e atalhos redundantes.
+- **Fluxo em 3 Etapas**:
+  - **Etapa 1 (Áreas)**: Alternância Frente/Costas/Ambas, Toque na silhueta, Repetir dores de ontem, Linha de irradiação anatômica.
+  - **Etapa 2 (Intensidade)**: Graduação 0 a 10 com `[-]` e `[+]`, comparativo com ontem (*Melhorou*, *Piorou*, *Sem alteração*).
+  - **Etapa 3 (Notas)**: Qualidades da dor (queimação, pontada, etc.), horário de pico e notas clínicas.
 
-3. **Fase 3: Monitoramento Clínico e Inteligência Livre de Custos**:
-   - Otimizar a análise de correlação entre sintomas e hábitos sem cobranças de API.
-   - Adicionar resumo de consulta para o Dr. Nathan Reumato com exportação pronta para impressão/PDF.
-   - Teste final de compilação, validação de lint e verificação de usabilidade.
+### C. Aba de Gráficos & Análises (`charts`)
+- **Centralização da Telemetria**:
+  - **Sub-aba 1 (RITMMA MAP & Visão 360°)**:
+    - O gráfico multidimensional de correlação (`RITMMA MAP`) agora é exibido aqui com suas curvas de tendência.
+    - Os 3 cards de síntese (*Qualidade do Sono*, *Frequência de Diário*, *Síntese de Dor & Fadiga*) são posicionados estrategicamente logo abaixo do gráfico.
+  - **Sub-abas 2, 3 e 4**: Tendências Clássicas, Matriz de Correlação e Histórico de Logs.
 
 ---
 
-## 6. Histórico de Entregas Recentes
+## 3. Principais Decisões de Design e UX
 
-### ✅ Registro Visual de Dor na Silhueta Humana & Histórico Integrado na Tela Principal
-- **Silhueta Anatômica Interativa (Frente e Costas)**:
-  - Homúnculo vetorial SVG de alta precisão clínica com zonas anatômicas facilmente selecionáveis (cabeça, cervical, ombros E/D, tórax, abdômen, cotovelos, punhos/mãos, coluna torácica, lombar, glúteos, quadris, coxas, joelhos, canelas/panturrilhas e pés).
-  - Alvos de toque acessíveis ($\ge 44\text{px}$) com visual feedback por código de cores: sem dor (cinza neutro), leve (âmbar 1-3), moderada (laranja 4-6) e intensa (rosa/vermelho 7-10 com animação de pulso).
-  - Seletor de intensidade imediato de 1 toque (0 a 10) e tags de sensações clínicas (queimação, pontada, peso, latejante, choque, rigidez).
-- **Integração Direta no Histórico de Dor da Tela Principal**:
-  - Incorporado diretamente no painel principal do paciente (`activeTab === 'home'`), logo abaixo da evolução multidimensional do RITMMA MAP e síntese de dor/fadiga.
-  - Seletor cronológico e scrubber interativo dos últimos 14 dias: permite navegar em qualquer dia passado para ver a distribuição anatômica da dor naquele momento e identificar migrações ou tender points.
-  - Ranking de *Hotspots* longitudinais dos últimos 30 dias: identifica automaticamente as 5 regiões corporais mais acometidas com frequência e média de intensidade.
-  - Atalho rápido do Mapa Corporal na tela inicial com scroll suave diretamente para a silhueta interativa.
-  - Eliminação de `window.confirm`/`window.alert` com confirmações e feedbacks suaves embutidos na interface.
+- **Zero Sobrecarga Cognitiva**: O paciente não verá gráficos densos ou perguntas sobre sono enquanto tenta apontar uma dor lombar no mapa.
+- **Mobile-First Real**: Tanto a tela inicial quanto a aba de mapa de dor respeitam a altura vertical do celular, sem rolagem horizontal ou caixas transbordando.
+- **Preservação Total de Dados**: Nenhuma métrica ou dado existente do paciente é perdido; apenas as visualizações são realocadas para seus respectivos contextos funcionais.
 
+---
+
+## 4. Plano de Execução Técnica
+
+1. **Limpeza da Tela Inicial (`PatientView.tsx`)**:
+   - Remover os blocos selecionados pelo usuário que estavam poluindo a visualização:
+     - Bloco do `RITMMA MAP` na home.
+     - Bloco dos 3 cards de síntese (Sono, Frequência, Dor & Fadiga).
+     - Atalhos duplicados de rodapé que já existem no menu principal.
+   - Ajustar o atalho "Mapa Corporal" da tela inicial para navegar diretamente até a aba `bodymap`.
+
+2. **Isolamento da Aba de Mapa de Dor (`activeTab === 'bodymap'`)**:
+   - Renderizar o componente `DailyPainMap` como elemento principal e exclusivo da tela.
+   - Garantir cabeçalho contextual limpo com título, descrição e botão de salvar.
+
+3. **Integração no Módulo de Gráficos (`chartsSubTab === 'recharts'`)**:
+   - Mover a visualização do `RITMMA MAP` e os 3 cards de síntese para a aba de Gráficos, logo após a visualização analítica.
+
+4. **Verificação de Compilação & Lint**:
+   - Executar `lint_applet` e `compile_applet` para assegurar ausência de erros de sintaxe ou referências quebradas.

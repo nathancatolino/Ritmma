@@ -1,0 +1,208 @@
+{
+  "id": "wpi19",
+  "version": "2.0.0",
+  "instrument": "Índice de Dor Generalizada (WPI)",
+  "period": "Últimos 7 dias",
+  "max_score": 19,
+  "selection_rule": "Cada uma das 19 regiões conta uma vez; seleção binária.",
+  "visual_reference": "assets/wpi_referencia_visual_aprovada.png",
+  "appearance": "Azul clínico sem preenchimento inicial; região selecionada em azul translúcido.",
+  "regions": [
+    {
+      "id": "jaw_R",
+      "label": "Mandíbula direita",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "direita",
+      "x": 257,
+      "y": 149,
+      "path": "M 242 126 L 258 128 L 270 151 L 269 173 L 254 165 L 248 150 Z"
+    },
+    {
+      "id": "jaw_L",
+      "label": "Mandíbula esquerda",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "esquerda",
+      "x": 318,
+      "y": 148,
+      "path": "M 315 128 L 331 126 L 329 149 L 320 164 L 308 173 L 307 151 Z"
+    },
+    {
+      "id": "upper_arm_R",
+      "label": "Braço direito",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "direita",
+      "x": 136,
+      "y": 398,
+      "path": "M 120 349 L 141 346 L 158 358 L 157 405 L 145 455 L 122 452 L 111 423 Z"
+    },
+    {
+      "id": "upper_arm_L",
+      "label": "Braço esquerdo",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "esquerda",
+      "x": 442,
+      "y": 399,
+      "path": "M 418 355 L 437 345 L 456 350 L 467 416 L 461 449 L 438 455 L 420 421 Z"
+    },
+    {
+      "id": "lower_arm_R",
+      "label": "Antebraço direito",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "direita",
+      "x": 100,
+      "y": 538,
+      "path": "M 98 469 L 126 471 L 136 489 L 116 543 L 91 607 L 62 620 L 70 570 Z"
+    },
+    {
+      "id": "lower_arm_L",
+      "label": "Antebraço esquerdo",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "esquerda",
+      "x": 475,
+      "y": 547,
+      "path": "M 439 470 L 465 469 L 480 500 L 500 585 L 508 620 L 477 623 L 455 559 Z"
+    },
+    {
+      "id": "upper_leg_R",
+      "label": "Coxa direita",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "direita",
+      "x": 214,
+      "y": 727,
+      "path": "M 196 597 L 232 608 L 250 665 L 254 736 L 248 812 L 221 844 L 187 825 L 167 769 L 167 685 Z"
+    },
+    {
+      "id": "upper_leg_L",
+      "label": "Coxa esquerda",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "esquerda",
+      "x": 363,
+      "y": 732,
+      "path": "M 354 600 L 379 606 L 398 668 L 408 751 L 402 795 L 374 830 L 344 844 L 324 821 L 319 746 L 325 660 Z"
+    },
+    {
+      "id": "lower_leg_R",
+      "label": "Perna direita",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "direita",
+      "x": 212,
+      "y": 995,
+      "path": "M 196 908 L 216 908 L 241 931 L 253 979 L 246 1046 L 229 1111 L 203 1119 L 188 1040 L 172 975 L 179 932 Z"
+    },
+    {
+      "id": "lower_leg_L",
+      "label": "Perna esquerda",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "esquerda",
+      "x": 356,
+      "y": 997,
+      "path": "M 346 919 L 372 909 L 389 931 L 399 974 L 381 1051 L 366 1111 L 340 1113 L 322 1048 L 318 976 L 327 942 Z"
+    },
+    {
+      "id": "chest",
+      "label": "Tórax anterior",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "central",
+      "x": 283,
+      "y": 319,
+      "path": "M 202 260 L 239 265 L 281 273 L 294 266 L 327 263 L 373 264 L 401 306 L 390 345 L 360 375 L 316 378 L 290 357 L 279 379 L 231 378 L 198 364 L 175 329 L 178 299 Z"
+    },
+    {
+      "id": "abdomen",
+      "label": "Abdome",
+      "asset": "wpi-anterior",
+      "view": "anterior",
+      "patient_side": "central",
+      "x": 284,
+      "y": 498,
+      "path": "M 257 387 L 304 387 L 340 414 L 356 459 L 374 525 L 351 575 L 306 601 L 261 604 L 221 571 L 197 544 L 210 484 L 227 419 Z"
+    },
+    {
+      "id": "shoulder_girdle_R",
+      "label": "Cintura escapular direita",
+      "asset": "wpi-posterior",
+      "view": "posterior",
+      "patient_side": "direita",
+      "x": 385,
+      "y": 290,
+      "path": "M 350 248 L 390 246 L 415 275 L 421 322 L 400 341 L 374 316 L 348 281 Z"
+    },
+    {
+      "id": "shoulder_girdle_L",
+      "label": "Cintura escapular esquerda",
+      "asset": "wpi-posterior",
+      "view": "posterior",
+      "patient_side": "esquerda",
+      "x": 118,
+      "y": 294,
+      "path": "M 107 246 L 146 248 L 164 282 L 136 332 L 105 342 L 83 329 L 82 282 Z"
+    },
+    {
+      "id": "hip_R",
+      "label": "Quadril/nádega direita",
+      "asset": "wpi-posterior",
+      "view": "posterior",
+      "patient_side": "direita",
+      "x": 318,
+      "y": 629,
+      "path": "M 277 552 L 315 550 L 349 581 L 365 625 L 358 679 L 321 702 L 285 693 L 270 650 Z"
+    },
+    {
+      "id": "hip_L",
+      "label": "Quadril/nádega esquerda",
+      "asset": "wpi-posterior",
+      "view": "posterior",
+      "patient_side": "esquerda",
+      "x": 196,
+      "y": 627,
+      "path": "M 184 552 L 221 551 L 238 598 L 241 665 L 225 692 L 191 702 L 158 684 L 146 622 L 156 577 Z"
+    },
+    {
+      "id": "upper_back",
+      "label": "Região dorsal",
+      "asset": "wpi-posterior",
+      "view": "posterior",
+      "patient_side": "central",
+      "x": 248,
+      "y": 323,
+      "path": "M 166 251 L 204 259 L 240 277 L 258 287 L 271 277 L 311 260 L 347 252 L 339 316 L 317 381 L 277 418 L 259 423 L 223 413 L 191 387 L 165 348 L 157 296 Z"
+    },
+    {
+      "id": "lower_back",
+      "label": "Região lombar",
+      "asset": "wpi-posterior",
+      "view": "posterior",
+      "patient_side": "central",
+      "x": 264,
+      "y": 491,
+      "path": "M 194 435 L 233 430 L 262 448 L 291 428 L 324 446 L 352 491 L 346 541 L 315 546 L 274 541 L 236 544 L 177 543 L 167 496 Z"
+    },
+    {
+      "id": "neck",
+      "label": "Região cervical",
+      "asset": "wpi-posterior",
+      "view": "posterior",
+      "patient_side": "central",
+      "x": 258,
+      "y": 205,
+      "path": "M 227 143 L 285 143 L 291 194 L 317 235 L 291 247 L 226 246 L 201 238 L 222 197 Z"
+    }
+  ],
+  "warnings": [
+    "A prancha de referência visual aprovada é ilustrativa e não contém sozinha uma representação fiel das 19 categorias de pontuação.",
+    "A versão interativa utiliza a mesma base artística neutralizada e exatamente 19 áreas independentes.",
+    "O WPI registra regiões referidas com dor, e não substitui nem calcula sozinho critérios ACR completos.",
+    "Homologar os contornos e a correspondência clínico-anatômica com o instrumento do site antes da produção."
+  ]
+}

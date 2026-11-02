@@ -1,0 +1,10 @@
+{
+  "id": "pain",
+  "version": "1.0",
+  "mode": "free-points",
+  "range": [
+    0,
+    10
+  ],
+  "notes": "Localização é armazenada como coordenada normalizada (u,v) e asset. Intensidade é independente da categoria do sintoma. Fora da silhueta não clicável."
+}

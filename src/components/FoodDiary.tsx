@@ -27,6 +27,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
+import { Tooltip, InfoTooltip } from './Tooltip';
 
 interface FoodDiaryProps {
   logs: DailyLog[];
@@ -247,8 +248,12 @@ export const FoodDiary: React.FC<FoodDiaryProps> = ({ logs, onSaveLog }) => {
         <div className="flex items-center gap-2.5">
           <Apple className="w-5 h-5 text-teal-500" />
           <div>
-            <h3 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100">
-              Diário Alimentar & Rastreio de Gatilhos
+            <h3 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+              <span>Diário Alimentar & Rastreio de Gatilhos</span>
+              <InfoTooltip
+                title="Nutrição & Gatilhos Inflamatórios"
+                content="Permite registrar o que você come em cada refeição e cruzar estatisticamente com as variações de dor nas 24h seguintes para identificar intolerâncias e alimentos pró-inflamatórios."
+              />
             </h3>
             <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
               Registre suas refeições diárias e cruze automaticamente com sua intensidade de dor.

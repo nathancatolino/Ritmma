@@ -287,7 +287,15 @@ export const BarChart: React.FC<{
               </text>
 
               {/* Bar */}
-              <rect x={x} y={y + 4} width={Math.max(1, w)} height={rowH - 12} rx="3" fill={col} />
+              <rect
+                x={x}
+                y={y + 4}
+                width={Math.max(1, w)}
+                height={rowH - 12}
+                rx="3"
+                fill={col}
+                className="transition-all duration-500 ease-out"
+              />
 
               {/* Value Text */}
               <text
@@ -352,6 +360,7 @@ export const DonutChart: React.FC<{ items: DonutItem[]; center?: string | number
                 strokeDasharray={`${len} ${circ - len}`}
                 strokeDashoffset={strokeDashOffset}
                 transform={`rotate(-90 ${cx} ${cy})`}
+                className="transition-all duration-700 ease-out"
               />
             );
           })}

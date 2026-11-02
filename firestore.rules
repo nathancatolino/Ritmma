@@ -19,31 +19,36 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Accounts collection
+    function isAuthorizedDoctorForPatient(patientId) {
+      let linkPath = /databases/$(database)/documents/links/$(patientId + "_" + request.auth.uid);
+      return isSignedIn() && exists(linkPath) && get(linkPath).data.status == 'authorized';
+    }
+
+    // Accounts collection (least privilege: direct get only, no bulk enumeration)
     match /accounts/{userId} {
       allow get: if isValidId(userId) && isSignedIn();
-      allow list: if isSignedIn();
+      allow list: if false;
       allow create: if isValidId(userId) && isOwner(userId);
       allow update: if isValidId(userId) && isOwner(userId);
       allow delete: if isValidId(userId) && isOwner(userId);
     }
 
-    // PatientData collection
+    // PatientData collection (requires effective authorization, pending links denied)
     match /patientData/{patientId} {
       allow get: if isValidId(patientId) && (
         isOwner(patientId) || 
-        (isSignedIn() && exists(/databases/$(database)/documents/links/$(patientId + "_" + request.auth.uid)))
+        isAuthorizedDoctorForPatient(patientId)
       );
       allow list: if isSignedIn() && (
         resource.data.patientId == request.auth.uid || 
-        exists(/databases/$(database)/documents/links/$(resource.data.patientId + "_" + request.auth.uid))
+        isAuthorizedDoctorForPatient(resource.data.patientId)
       );
       allow create: if isValidId(patientId) && isOwner(patientId);
       allow update: if isValidId(patientId) && isOwner(patientId);
       allow delete: if isValidId(patientId) && isOwner(patientId);
     }
 
-    // Links collection
+    // Links collection (participant immutability, only patient can authorize)
     match /links/{linkId} {
       allow get: if isValidId(linkId) && isSignedIn() && (
         resource.data.patientId == request.auth.uid || 
@@ -56,10 +61,15 @@ service cloud.firestore {
       allow create: if isValidId(linkId) && isSignedIn() && (
         request.resource.data.patientId == request.auth.uid || 
         request.resource.data.doctorId == request.auth.uid
-      );
+      ) && request.resource.data.status in ['pending', 'authorized'];
       allow update: if isValidId(linkId) && isSignedIn() && (
-        resource.data.patientId == request.auth.uid || 
-        resource.data.doctorId == request.auth.uid
+        // Must be participant
+        (resource.data.patientId == request.auth.uid || resource.data.doctorId == request.auth.uid) &&
+        // Participants are immutable
+        request.resource.data.patientId == resource.data.patientId &&
+        request.resource.data.doctorId == resource.data.doctorId &&
+        // Only patient can authorize a pending request (doctor cannot self-authorize)
+        (request.resource.data.status != 'authorized' || request.auth.uid == resource.data.patientId)
       );
       allow delete: if isValidId(linkId) && isSignedIn() && (
         resource.data.patientId == request.auth.uid || 

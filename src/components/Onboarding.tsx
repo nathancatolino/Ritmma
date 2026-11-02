@@ -78,6 +78,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
   onFinish,
   isModal = false
 }) => {
+  const [mode, setMode] = useState<'essential' | 'full'>('essential');
   const [step, setStep] = useState(0);
 
   // Step 2: Personal Profile & Biometrics
@@ -116,7 +117,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
   // Interactive Simulator - Map comparison
   const [simMapMode, setSimMapMode] = useState<'badSleep' | 'goodSleep'>('badSleep');
 
-  const TOTAL_STEPS = 7;
+  const TOTAL_STEPS = mode === 'essential' ? 2 : 7;
 
   // Real-time BMI calculation
   const imcInfo = (() => {
@@ -215,15 +216,17 @@ export const Onboarding: React.FC<OnboardingProps> = ({
     }
   };
 
-  const stepTitles = [
-    'Boas-vindas',
-    'Perfil & Biometria',
-    'Condições de Saúde',
-    'Linhas de Base',
-    'Medicamentos & Hábitos',
-    'Aprenda a Usar (Simulador)',
-    'Tudo Pronto!'
-  ];
+  const stepTitles = mode === 'essential'
+    ? ['Boas-vindas & Nome', 'Condições de Saúde']
+    : [
+        'Boas-vindas',
+        'Perfil & Biometria',
+        'Condições de Saúde',
+        'Linhas de Base',
+        'Medicamentos & Hábitos',
+        'Aprenda a Usar (Simulador)',
+        'Tudo Pronto!'
+      ];
 
   return (
     <div className={`flex flex-col items-center justify-center ${isModal ? 'p-0' : 'min-h-[85vh] px-4 py-8'}`}>
@@ -265,7 +268,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
           </div>
 
           {/* ══════════════════════════════════════════════════
-              PASSO 0: BOAS-VINDAS & PROPÓSITO
+              PASSO 0: BOAS-VINDAS & IDENTIFICAÇÃO ESSENCIAL
           ══════════════════════════════════════════════════ */}
           {step === 0 && (
             <div className="space-y-6 text-center animate-in fade-in duration-300">
@@ -275,57 +278,85 @@ export const Onboarding: React.FC<OnboardingProps> = ({
 
               <div className="space-y-2 max-w-xl mx-auto">
                 <h2 className="font-poppins font-bold text-2xl text-slate-800 dark:text-slate-100 tracking-tight">
-                  Bem-vindo ao seu painel clínico interativo
+                  Bem-vindo ao RITMMA
                 </h2>
-                <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm leading-relaxed">
-                  O <strong>RITMA</strong> conecta dor crônica, sono reparador, fatores climáticos, gatilhos de rotina e tratamentos em padrões claros e visuais. Em apenas <strong>3 minutos</strong>, vamos calibrar o aplicativo para as suas necessidades e ensinar como tirar o máximo proveito dele.
+                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+                  Estamos aqui para apoiar você no acompanhamento diário da dor, fadiga e rotina, ajudando você e sua equipe de saúde a encontrar padrões com tranquilidade.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left pt-2">
-                <div className="p-4 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-2xl space-y-1.5 shadow-2xs">
-                  <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-400 flex items-center justify-center font-black text-xs mb-1">
-                    1
-                  </div>
-                  <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                    Preenchimento Rápido
-                  </strong>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                    Cadastramos sua biometria, diagnósticos e linhas de base de dor uma única vez.
-                  </p>
+              {/* IDENTIFICAÇÃO BÁSICA INICIAL (2 CAMPOS ESSENCIAIS) */}
+              <div className="max-w-md mx-auto p-5 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-left space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="onboarding-name" className="text-sm font-bold text-slate-800 dark:text-slate-200 block">
+                    Como você prefere ser chamado(a)?
+                  </label>
+                  <input
+                    id="onboarding-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Seu nome ou apelido preferido"
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none font-medium"
+                  />
                 </div>
 
-                <div className="p-4 bg-sky-50/60 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/40 rounded-2xl space-y-1.5 shadow-2xs">
-                  <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-900 text-sky-600 dark:text-sky-400 flex items-center justify-center font-black text-xs mb-1">
-                    2
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="onboarding-gender" className="text-sm font-bold text-slate-800 dark:text-slate-200 block">
+                      Sexo Biológico <span className="text-xs text-slate-400 font-normal">(Opcional)</span>
+                    </label>
                   </div>
-                  <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                    Aprenda na Prática
-                  </strong>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                    Um simulador interativo para você testar como funciona o registro em 30 segundos.
+                  <select
+                    id="onboarding-gender"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none font-medium cursor-pointer"
+                  >
+                    <option value="">Prefiro informar depois no perfil</option>
+                    <option value="F">Feminino</option>
+                    <option value="M">Masculino</option>
+                    <option value="other">Outro / Não aplicável</option>
+                  </select>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-normal">
+                    💡 <em>Por que pedimos isso?</em> Algumas referências hormonais e questionários clínicos utilizam essa informação para calibrar valores de referência.
                   </p>
                 </div>
+              </div>
 
-                <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl space-y-1.5 shadow-2xs">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-xs mb-1">
-                    3
-                  </div>
-                  <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                    Autonomia & LGPD
-                  </strong>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                    Seus dados são 100% criptografados e você tem controle total para exportá-los.
-                  </p>
+              {/* MODO DE ONBOARDING: ESSENCIAL VS COMPLETO */}
+              <div className="max-w-md mx-auto flex items-center justify-between gap-3 p-3 bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-xl text-left">
+                <div className="text-xs text-slate-600 dark:text-slate-300">
+                  <span className="font-bold block text-teal-800 dark:text-teal-300">
+                    {mode === 'essential' ? 'Cadastro Essencial (2 Passos)' : 'Modo Completo (7 Etapas)'}
+                  </span>
+                  <span>
+                    {mode === 'essential'
+                      ? 'Em 1 minuto você conclui e já faz seu primeiro registro de sintomas.'
+                      : 'Configuração detalhada de biometria, medicações e simulador.'}
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (mode === 'essential') {
+                      setMode('full');
+                    } else {
+                      setMode('essential');
+                    }
+                  }}
+                  className="text-xs font-bold text-teal-700 dark:text-teal-300 underline hover:text-teal-800 cursor-pointer shrink-0"
+                >
+                  {mode === 'essential' ? 'Ver modo completo' : 'Voltar ao essencial'}
+                </button>
               </div>
             </div>
           )}
 
           {/* ══════════════════════════════════════════════════
-              PASSO 1: PERFIL & BIOMETRIA
+              PASSO 1 (MODO COMPLETO): PERFIL & BIOMETRIA
           ══════════════════════════════════════════════════ */}
-          {step === 1 && (
+          {mode === 'full' && step === 1 && (
             <div className="space-y-4 animate-in fade-in duration-300">
               <div className="space-y-1">
                 <h3 className="font-poppins font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -435,9 +466,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({
           )}
 
           {/* ══════════════════════════════════════════════════
-              PASSO 2: CONDIÇÕES & DIAGNÓSTICOS
+              CONDIÇÕES & DIAGNÓSTICOS (PASSO 1 NO ESSENCIAL OU PASSO 2 NO COMPLETO)
           ══════════════════════════════════════════════════ */}
-          {step === 2 && (
+          {((mode === 'essential' && step === 1) || (mode === 'full' && step === 2)) && (
             <div className="space-y-4 animate-in fade-in duration-300">
               <div className="space-y-1">
                 <h3 className="font-poppins font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -1067,27 +1098,42 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         </div>
 
         {/* ── FOOTER NAVIGATION CONTROLS ── */}
-        <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-4 mt-6">
-          {step > 0 ? (
-            <button
-              type="button"
-              onClick={handleBack}
-              className="px-4 py-2 text-xs font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Voltar</span>
-            </button>
-          ) : (
-            <div />
-          )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-4 mt-6 gap-3">
+          <div className="flex items-center justify-between sm:justify-start gap-2">
+            {step > 0 ? (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="px-4 py-2.5 text-xs font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px]"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Voltar</span>
+              </button>
+            ) : (
+              <div />
+            )}
+
+            {mode === 'essential' && step === 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('full');
+                  setStep(3);
+                }}
+                className="text-xs text-teal-600 dark:text-teal-400 font-semibold underline hover:text-teal-700 cursor-pointer min-h-[44px] flex items-center px-2"
+              >
+                Personalizar medicamentos e linhas de base agora
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleNext}
-              className="px-6 py-2.5 text-xs font-bold bg-gradient-to-r from-teal-500 via-teal-600 to-indigo-600 hover:opacity-95 text-white rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              className="w-full sm:w-auto px-6 py-3 text-xs font-bold bg-gradient-to-r from-teal-500 via-teal-600 to-indigo-600 hover:opacity-95 text-white rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 min-h-[44px]"
             >
-              <span>{step === TOTAL_STEPS - 1 ? 'Concluir e Ir ao Painel' : 'Avançar'}</span>
+              <span>{step === TOTAL_STEPS - 1 ? (mode === 'essential' ? 'Concluir e Fazer Primeiro Registro' : 'Concluir e Ir ao Painel') : 'Avançar'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

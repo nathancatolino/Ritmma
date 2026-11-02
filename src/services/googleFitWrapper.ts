@@ -7,15 +7,15 @@ import { WearableSyncData } from '../types';
 
 export interface GoogleFitSyncResult {
   success: boolean;
-  data: WearableSyncData;
-  source: 'google_fit_api' | 'google_fit_demo';
+  data?: WearableSyncData;
+  source: 'google_fit_api' | 'google_fit_demo' | 'google_fit_unavailable';
   message: string;
   rawDetails?: {
-    totalSteps: number;
-    sleepMinutes: number;
-    sleepSegmentsCount: number;
-    avgBpm: number;
-    hrvMs: number;
+    totalSteps?: number;
+    sleepMinutes?: number;
+    sleepSegmentsCount?: number;
+    avgBpm?: number;
+    hrvMs?: number;
   };
 }
 
@@ -23,10 +23,16 @@ export interface GoogleFitSyncResult {
  * Google Fit REST API Wrapper
  * Interacts with Google Fitness API v1 aggregate dataset endpoint
  * (https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate)
+ *
+ * RIGOR CIENTÍFICO E INTEGRIDADE:
+ * - Apenas dados reais retornados pela API são gravados como medições clínicas.
+ * - Falhas de conexão ou ausência de medições retornam erro transparente, sem valores fictícios.
+ * - HRV não é inventado nem derivado de médias de BPM (requer medição fisiológica real de intervalos RR/RMSSD).
  */
 export async function fetchGoogleFitMetrics(
   accessToken?: string | null,
-  targetDateISO?: string
+  targetDateISO?: string,
+  allowDemoFallback: boolean = false
 ): Promise<GoogleFitSyncResult> {
   const dateStr = targetDateISO || new Date().toISOString().split('T')[0];
   const dateObj = new Date(dateStr + 'T00:00:00');
@@ -39,7 +45,6 @@ export async function fetchGoogleFitMetrics(
   // If token is provided, attempt real Google Fit REST API call
   if (accessToken && accessToken.trim().length > 10) {
     try {
-      // Direct call or via our proxy
       const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
         method: 'POST',
         headers: {
@@ -64,6 +69,8 @@ export async function fetchGoogleFitMetrics(
         let steps = 0;
         let sleepMinutes = 0;
         let hrSamples: number[] = [];
+        let hasStepData = false;
+        let hasSleepData = false;
 
         if (bucket?.dataset) {
           bucket.dataset.forEach((ds: any) => {
@@ -73,6 +80,7 @@ export async function fetchGoogleFitMetrics(
               if (dataTypeName.includes('step') || pt.dataTypeName?.includes('step')) {
                 const val = pt.value?.[0]?.intVal || pt.value?.[0]?.fpVal || 0;
                 steps += Math.round(val);
+                hasStepData = true;
               }
               // Sleep segments: duration between startTimeNanos and endTimeNanos
               if (dataTypeName.includes('sleep') || pt.dataTypeName?.includes('sleep')) {
@@ -82,6 +90,7 @@ export async function fetchGoogleFitMetrics(
                 if (segType !== 1 && segType !== 3 && endNanos > startNanos) {
                   const durationMins = (endNanos - startNanos) / (1e9 * 60);
                   sleepMinutes += durationMins;
+                  hasSleepData = true;
                 }
               }
               // Heart rate
@@ -95,86 +104,111 @@ export async function fetchGoogleFitMetrics(
           });
         }
 
-        // If dataset points returned zero, fallback to reasonable values
-        const finalSteps = steps > 0 ? steps : Math.round(5500 + (Math.sin(startTimeMillis) * 1200));
-        const finalSleepHours = sleepMinutes > 0 ? Number((sleepMinutes / 60).toFixed(1)) : 7.2;
-        
-        let avgBpm = 68;
-        let hrv = 45;
+        const finalSleepHours = hasSleepData ? Number((sleepMinutes / 60).toFixed(1)) : undefined;
+        let avgBpm: number | undefined = undefined;
         if (hrSamples.length > 0) {
           avgBpm = Math.round(hrSamples.reduce((a, b) => a + b, 0) / hrSamples.length);
-          // Calculate RMSSD/SDNN approx for HRV
-          if (hrSamples.length > 2) {
-            let sumDiffSq = 0;
-            for (let i = 1; i < hrSamples.length; i++) {
-              const diff = hrSamples[i] - hrSamples[i - 1];
-              sumDiffSq += diff * diff;
-            }
-            hrv = Math.round(Math.sqrt(sumDiffSq / (hrSamples.length - 1)) * 6) || 45;
-          }
         }
 
-        const sleepQuality = Math.min(100, Math.max(40, Math.round((finalSleepHours / 8) * 80 + (hrv / 50) * 20)));
-
+        // Only include fields that actually have measurements
         const syncData: WearableSyncData = {
-          steps: finalSteps,
+          steps: hasStepData ? steps : undefined,
           sleepHours: finalSleepHours,
-          sleepQuality,
-          hrv: Math.min(110, Math.max(25, hrv)),
+          sleepQuality: finalSleepHours !== undefined ? Math.min(100, Math.max(30, Math.round((finalSleepHours / 8) * 100))) : undefined,
+          // HRV is NOT calculated from aggregate BPM averages (scientifically invalid without beat-to-beat RMSSD)
+          hrv: undefined,
           restingHeartRate: avgBpm,
           device: 'Google Fit / Wear OS',
-          syncedAt: new Date().toISOString()
+          syncedAt: new Date().toISOString(),
+          dataSource: 'device_api',
+          isDemo: false
         };
+
+        const detailsParts: string[] = [];
+        if (hasStepData) detailsParts.push(`${steps.toLocaleString('pt-BR')} passos`);
+        if (finalSleepHours !== undefined) detailsParts.push(`${finalSleepHours}h de sono`);
+        if (avgBpm !== undefined) detailsParts.push(`FC média de ${avgBpm} bpm`);
+
+        const summaryText = detailsParts.length > 0
+          ? detailsParts.join(', ')
+          : 'Nenhum registro de atividade encontrado para esta data no Google Fit.';
 
         return {
           success: true,
           data: syncData,
           source: 'google_fit_api',
-          message: `Sincronizado diretamente da Google Fit API: ${finalSteps.toLocaleString('pt-BR')} passos, ${finalSleepHours}h de sono e HRV de ${syncData.hrv}ms.`,
+          message: `Sincronizado da Google Fit API: ${summaryText}.`,
           rawDetails: {
-            totalSteps: finalSteps,
-            sleepMinutes: Math.round(finalSleepHours * 60),
+            totalSteps: hasStepData ? steps : 0,
+            sleepMinutes: Math.round(sleepMinutes),
             sleepSegmentsCount: hrSamples.length,
             avgBpm,
-            hrvMs: syncData.hrv || 45
+            hrvMs: undefined
           }
         };
       } else {
-        console.warn('Google Fit API returned error:', response.status, await response.text());
+        const errorText = await response.text();
+        console.warn('Google Fit API returned error:', response.status, errorText);
+        return {
+          success: false,
+          source: 'google_fit_unavailable',
+          message: `Erro na API do Google Fit (Código ${response.status}). Verifique o token de autorização.`
+        };
       }
-    } catch (err) {
-      console.warn('Failed to call Google Fit API directly, using calibrated mock telemetry:', err);
+    } catch (err: any) {
+      console.warn('Failed to call Google Fit API:', err);
+      return {
+        success: false,
+        source: 'google_fit_unavailable',
+        message: 'Falha de conexão com a API do Google Fit. Nenhuma medição fictícia foi gravada.'
+      };
     }
   }
 
-  // Graceful calibrated simulation for demo and sandbox testing
-  // Deterministic values based on date seed so values remain stable across re-renders
+  // If no token is configured and demo is not explicitly allowed:
+  if (!allowDemoFallback) {
+    return {
+      success: false,
+      source: 'google_fit_unavailable',
+      message: 'Token de acesso do Google Fit não configurado. Para sincronizar dados reais, conecte sua conta Google no menu de Opções de Conexão.'
+    };
+  }
+
+  // Explicit demonstration sandbox only
+  return getGoogleFitDemoMetrics(targetDateISO);
+}
+
+/**
+ * Retorna dados exclusivamente para demonstração interativa de interface.
+ * OBRIGATORIAMENTE identificado como [DEMO] e isDemo: true.
+ */
+export function getGoogleFitDemoMetrics(targetDateISO?: string): GoogleFitSyncResult {
+  const dateStr = targetDateISO || new Date().toISOString().split('T')[0];
+  const dateObj = new Date(dateStr + 'T00:00:00');
   const daySeed = (dateObj.getDate() * 17 + dateObj.getMonth() * 31) % 100;
   const mockSteps = 6800 + (daySeed * 45);
   const mockSleepHours = Number((6.8 + (daySeed % 15) * 0.1).toFixed(1));
-  const mockHrv = 42 + (daySeed % 25);
   const mockRestingBpm = 64 + (daySeed % 12);
-  const mockSleepScore = Math.min(96, Math.max(55, Math.round(75 + (mockSleepHours - 7) * 8 + (mockHrv - 45) * 0.4)));
 
   return {
     success: true,
     data: {
       steps: mockSteps,
       sleepHours: mockSleepHours,
-      sleepQuality: mockSleepScore,
-      hrv: mockHrv,
+      sleepQuality: Math.round(75 + (mockSleepHours - 7) * 8),
       restingHeartRate: mockRestingBpm,
-      device: 'Google Fit (Wear OS / Pixel Watch)',
-      syncedAt: new Date().toISOString()
+      device: '[DEMO] Simulador de Testes Google Fit',
+      syncedAt: new Date().toISOString(),
+      dataSource: 'demo_simulation',
+      isDemo: true
     },
     source: 'google_fit_demo',
-    message: `Dados sincronizados via Google Fit wrapper: ${mockSteps.toLocaleString('pt-BR')} passos, ${mockSleepHours}h de sono, HRV ${mockHrv}ms e FC de repouso ${mockRestingBpm} bpm.`,
+    message: `[AMBIENTE DE TESTE / DEMO]: Dados fictícios gerados apenas para validação de interface. Não gravados como medição clínica.`,
     rawDetails: {
       totalSteps: mockSteps,
       sleepMinutes: Math.round(mockSleepHours * 60),
       sleepSegmentsCount: 4,
-      avgBpm: mockRestingBpm,
-      hrvMs: mockHrv
+      avgBpm: mockRestingBpm
     }
   };
 }

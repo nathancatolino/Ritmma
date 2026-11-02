@@ -1,0 +1,14 @@
+{
+  "id": "psa",
+  "version": "1.0",
+  "mode": "exploratory",
+  "anatomy": [
+    "corpo-anterior",
+    "corpo-posterior",
+    "mao-direita",
+    "mao-esquerda",
+    "pe-direito",
+    "pe-esquerdo"
+  ],
+  "warning": "Vista de referência, não é mapa validado de 66/68 articulações. Acrescentar todas as juntas, enteses e dígitos no schema específico antes de usar escore clínico."
+}

@@ -59,10 +59,13 @@ import { RitmaLogo } from './RitmaLogo';
 import { FilterLogs } from './FilterLogs';
 import { CorrelationViewer } from './CorrelationViewer';
 import { BodyPainMap } from './BodyPainMap';
+import { DailyPainMap } from './DailyPainMap';
 import { FoodDiary } from './FoodDiary';
 import { TipOfTheDay } from './TipOfTheDay';
 import { SettingsPanel } from './SettingsPanel';
 import { Onboarding, OnboardingCompletedData } from './Onboarding';
+import { PainEpisodeTracker } from './PainEpisodeTracker';
+import { ClinicalPhotoManager } from './ClinicalPhotoManager';
 import {
   Home,
   BookOpen,
@@ -111,9 +114,20 @@ import {
   Sparkles,
   Sliders,
   Award,
-  BarChart2
+  BarChart2,
+  Flame,
+  Camera,
+  Plus,
+  PlusCircle,
+  CheckCircle2,
+  Loader2,
+  FlaskConical,
+  ArrowRight,
+  Droplets
 } from 'lucide-react';
 import { DevicesHub } from './DevicesHub';
+import { Tooltip, InfoTooltip } from './Tooltip';
+import { ScienceWorkbench } from './ScienceWorkbench';
 
 interface PatientViewProps {
   data: ChronosData;
@@ -124,7 +138,7 @@ interface PatientViewProps {
   onManualCloudSync?: () => Promise<boolean>;
 }
 
-type TabType = 'home' | 'diary' | 'medications' | 'bodymap' | 'fooddiary' | 'metrics' | 'charts' | 'alert' | 'mood' | 'doctor' | 'notif' | 'report' | 'settings' | 'devices' | 'hydration' | 'achievements' | 'geminianalysis' | 'news';
+type TabType = 'home' | 'diary' | 'medications' | 'bodymap' | 'fooddiary' | 'metrics' | 'charts' | 'alert' | 'mood' | 'doctor' | 'notif' | 'report' | 'settings' | 'devices' | 'hydration' | 'achievements' | 'geminianalysis' | 'news' | 'episodes' | 'photos' | 'science';
 
 let audioCtx: AudioContext | null = null;
 const playAlarmSound = () => {
@@ -184,6 +198,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
   const [showRefsModal, setShowRefsModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [chartsSubTab, setChartsSubTab] = useState<'recharts' | 'classic' | 'sensibilidade' | 'logs'>('recharts');
+  const [mobileRegisterDrawerOpen, setMobileRegisterDrawerOpen] = useState(false);
 
   const handleOnboardingModalComplete = (
     diagnoses: Record<string, boolean>,
@@ -232,6 +247,39 @@ export const PatientView: React.FC<PatientViewProps> = ({
         ? prev.filter((p) => p !== paramKey)
         : [...prev, paramKey]
     );
+  };
+
+  // Dedicated visual saving notification system
+  const [saveFeedback, setSaveFeedback] = useState<{
+    status: 'idle' | 'saving' | 'saved' | 'error';
+    title: string;
+    detail?: string;
+    timestamp?: string;
+  }>({ status: 'idle', title: '' });
+
+  const notifySaving = (title = 'Salvando alterações...', detail = 'Gravando no aparelho e sincronizando...') => {
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setSaveFeedback({
+      status: 'saving',
+      title,
+      detail,
+      timestamp: time
+    });
+  };
+
+  const notifySaved = (title = 'Alterações salvas com sucesso!', detail?: string) => {
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const fullDetail = detail || `Sincronizado e salvo com segurança às ${time}`;
+    setSaveFeedback({
+      status: 'saved',
+      title,
+      detail: fullDetail,
+      timestamp: time
+    });
+    // Auto-dismiss after 4 seconds
+    setTimeout(() => {
+      setSaveFeedback((prev) => (prev.status === 'saved' ? { ...prev, status: 'idle' } : prev));
+    }, 4000);
   };
 
   const [showScientificMetrics, setShowScientificMetrics] = useState(() => {
@@ -332,6 +380,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
   };
 
   const handleTakeMedicationNow = (med: MedicationConfig) => {
+    notifySaving(`Registrando dose de ${med.name}...`, 'Atualizando adesão de hoje no dispositivo...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -358,6 +407,9 @@ export const PatientView: React.FC<PatientViewProps> = ({
         todayLog.forgotMedication = Object.values(todayLog.medicationAdherence).includes('forgotten');
       }
     });
+    setTimeout(() => {
+      notifySaved(`✓ Dose de ${med.name} registrada e salva com sucesso!`);
+    }, 300);
     handleDismiss(med.id);
   };
 
@@ -490,18 +542,120 @@ export const PatientView: React.FC<PatientViewProps> = ({
     }, 1000);
   };
 
+  // Persistent tracking of read notifications
+  const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`ritma_read_notifs_${account.id}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const markNotifAsRead = (id: string) => {
+    setReadNotifIds((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      try {
+        localStorage.setItem(`ritma_read_notifs_${account.id}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const markAllNotifsAsRead = (allIds: string[]) => {
+    setReadNotifIds((prev) => {
+      const next = Array.from(new Set([...prev, ...allIds]));
+      try {
+        localStorage.setItem(`ritma_read_notifs_${account.id}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
   // Link Form
   const [docCodeInput, setDocCodeInput] = useState('');
 
   const logs = pd?.dailyLogs || [];
   const riskResult = calcRisk(pd);
-  const todayLogged = logs.some((l) => l.date === todayISO());
-  const unreadCount = (!todayLogged ? 1 : 0) + (riskResult.level !== 'LOW' ? 1 : 0);
+  const todayLog = logs.find((l) => l.date === todayISO()) || null;
+  const todayLogged = !!todayLog;
+
+  // Specific notification IDs for today
+  const diaryNotifId = `diary-status-${todayISO()}`;
+  const riskNotifId = `risk-alert-${riskResult.level}-${todayISO()}`;
+
+  const isDiaryUnread = !todayLogged && !readNotifIds.includes(diaryNotifId);
+  const isRiskUnread = riskResult.level !== 'LOW' && !readNotifIds.includes(riskNotifId);
+  const unreadCount = (isDiaryUnread ? 1 : 0) + (isRiskUnread ? 1 : 0);
+
+  // Automatically mark notifications as read when the user views the notifications tab
+  useEffect(() => {
+    if (activeTab === 'notif') {
+      const currentActiveIds = [
+        diaryNotifId,
+        riskNotifId,
+        'basal-params',
+        'meds-routine',
+        'body-map',
+        'hydration-metric'
+      ];
+      setReadNotifIds((prev) => {
+        const next = Array.from(new Set([...prev, ...currentActiveIds]));
+        try {
+          localStorage.setItem(`ritma_read_notifs_${account.id}`, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  }, [activeTab, account.id, diaryNotifId, riskNotifId]);
 
   const activeDxs = Object.keys(pd?.diagnoses || {}).filter((k) => pd.diagnoses[k]);
 
+  // 7-day and 30-day longitudinal evolution stats (Etapa 6: Respostas às 3 perguntas)
+  const evolutionSummary = React.useMemo(() => {
+    const todayLog = logs.find((l) => l.date === todayISO()) || null;
+    const last7Logs = logs.slice(-7);
+    const last30Logs = logs.slice(-30);
+
+    const calcAvg = (arr: DailyLog[], key: keyof DailyLog) => {
+      const vals = arr.map((l) => Number(l[key])).filter((v) => !isNaN(v) && v !== null && v !== undefined);
+      if (vals.length === 0) return null;
+      return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+    };
+
+    const avgPain7 = calcAvg(last7Logs, 'pain');
+    const avgPain30 = calcAvg(last30Logs, 'pain');
+    const avgSleep7 = calcAvg(last7Logs, 'sleep');
+    const avgFatigue7 = calcAvg(last7Logs, 'fatigue');
+
+    let trendLabel = 'Estável';
+    let trendColor = 'text-teal-600 dark:text-teal-400';
+    if (avgPain7 && avgPain30) {
+      const diff = Number(avgPain7) - Number(avgPain30);
+      if (diff <= -0.8) {
+        trendLabel = 'Em melhora';
+        trendColor = 'text-emerald-600 dark:text-emerald-400';
+      } else if (diff >= 0.8) {
+        trendLabel = 'Oscilação recente';
+        trendColor = 'text-amber-600 dark:text-amber-400';
+      }
+    }
+
+    return {
+      todayLog,
+      avgPain7,
+      avgPain30,
+      avgSleep7,
+      avgFatigue7,
+      trendLabel,
+      trendColor
+    };
+  }, [logs]);
+
   // SAVE LOG HANDLER
   const handleSaveLog = (newLog: DailyLog) => {
+    notifySaving('Salvando alterações do registro...', 'Gravando dados no aparelho e sincronizando...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -536,11 +690,16 @@ export const PatientView: React.FC<PatientViewProps> = ({
       }
     });
 
+    setTimeout(() => {
+      notifySaved('✓ Alterações salvas com sucesso!', 'Seus dados diários e pontos corporais foram registrados.');
+    }, 350);
+
     setActiveTab('home');
   };
 
   // SAVE CLINICAL METRIC HANDLER
   const handleSaveMetric = (newMetric: PeriodicMetric) => {
+    notifySaving('Salvando avaliação clínica...', 'Gravando parâmetros...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -548,6 +707,9 @@ export const PatientView: React.FC<PatientViewProps> = ({
         profile.periodicMetrics.push(newMetric);
       }
     });
+    setTimeout(() => {
+      notifySaved('✓ Avaliação clínica salva com sucesso!', `Escore de ${newMetric.type} registrado.`);
+    }, 300);
   };
 
   // UPDATE PATIENT PROFILE (WEIGHT, MEDICATIONS, SCHEDULED EVENTS)
@@ -556,6 +718,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
     medications: MedicationConfig[],
     scheduledEvents: ScheduledEventConfig[]
   ) => {
+    notifySaving('Salvando dados do perfil...', 'Atualizando medicações e parâmetros...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -565,10 +728,14 @@ export const PatientView: React.FC<PatientViewProps> = ({
         profile.scheduledEvents = scheduledEvents;
       }
     });
+    setTimeout(() => {
+      notifySaved('✓ Perfil e medicações salvos com sucesso!');
+    }, 300);
   };
 
   // UPDATE GENERIC DAILY LOG FIELD
   const handleUpdateDailyLogField = <K extends keyof DailyLog>(key: K, value: DailyLog[K]) => {
+    notifySaving('Salvando alteração...', 'Gravando dados no diário...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -592,10 +759,14 @@ export const PatientView: React.FC<PatientViewProps> = ({
         todayLog[key] = value;
       }
     });
+    setTimeout(() => {
+      notifySaved('✓ Alteração salva com sucesso!');
+    }, 300);
   };
 
   // TOGGLE TRIGGER IN TODAY LOG
   const handleToggleTriggerToday = (trigger: string) => {
+    notifySaving('Salvando gatilho...', 'Atualizando registro de hoje...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -624,10 +795,14 @@ export const PatientView: React.FC<PatientViewProps> = ({
         }
       }
     });
+    setTimeout(() => {
+      notifySaved('✓ Gatilho atualizado e salvo!');
+    }, 300);
   };
 
   // UPDATE WATER INTAKE FOR TODAY
   const handleUpdateWaterIntake = (amount: number, isDirect: boolean = false) => {
+    notifySaving('Salvando hidratação...', 'Atualizando ingestão hídrica...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -655,10 +830,14 @@ export const PatientView: React.FC<PatientViewProps> = ({
         }
       }
     });
+    setTimeout(() => {
+      notifySaved('✓ Hidratação salva com sucesso!');
+    }, 300);
   };
 
   // UPDATE WEIGHT DIRECTLY
   const handleUpdateWeight = (weight: number) => {
+    notifySaving('Salvando peso corporal...', 'Atualizando dados...');
     onUpdateData((prev) => {
       const patientId = prev.session.currentUserId!;
       const profile = prev.patientData[patientId];
@@ -666,6 +845,9 @@ export const PatientView: React.FC<PatientViewProps> = ({
         profile.weight = weight;
       }
     });
+    setTimeout(() => {
+      notifySaved('✓ Peso corporal salvo com sucesso!');
+    }, 300);
   };
 
   // VINCULAR MÉDICO HANDLER
@@ -873,6 +1055,47 @@ export const PatientView: React.FC<PatientViewProps> = ({
         />
       )}
 
+      {/* ── AVISO FLUTUANTE DE SALVAMENTO DE ALTERAÇÕES (NOTIFICAÇÃO VISUAL IMEDIATA) ── */}
+      {saveFeedback.status !== 'idle' && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 right-4 z-50 max-w-sm w-[calc(100%-2rem)] sm:w-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-xl shadow-slate-900/10 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-3 duration-200"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            {saveFeedback.status === 'saving' ? (
+              <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 shrink-0 border border-amber-200/60 dark:border-amber-900/50">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+              </div>
+            ) : (
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shrink-0 border border-emerald-200/60 dark:border-emerald-900/50">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <strong className={`text-xs font-bold block truncate ${
+                saveFeedback.status === 'saving' ? 'text-amber-800 dark:text-amber-300' : 'text-emerald-800 dark:text-emerald-300'
+              }`}>
+                {saveFeedback.title}
+              </strong>
+              {saveFeedback.detail && (
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                  {saveFeedback.detail}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSaveFeedback({ status: 'idle', title: '' })}
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer shrink-0"
+            aria-label="Dispensar aviso"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* ── SIDEBAR NAVIGATION ── */}
       <aside
         className={`fixed top-0 bottom-0 left-0 w-60 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800/80 flex flex-col z-50 transition-transform duration-300 lg:translate-x-0 ${
@@ -902,15 +1125,23 @@ export const PatientView: React.FC<PatientViewProps> = ({
               group: 'Registro Diário',
               items: [
                 { id: 'diary', icon: BookOpen, label: 'Meu Diário' },
+                {
+                  id: 'episodes',
+                  icon: Flame,
+                  label: 'Crises & Episódios',
+                  badge: pd?.painEpisodes?.some((e) => e.status === 'ongoing') ? 'Ativo' : undefined
+                },
                 { id: 'medications', icon: Pill, label: 'Minhas Medicações' },
                 { id: 'bodymap', icon: Activity, label: 'Mapa Corporal de Dor' },
+                { id: 'photos', icon: Camera, label: 'Fotos Clínicas (Sinais)' },
                 { id: 'devices', icon: Watch, label: 'Relógios & Sensores' }
               ]
             },
             {
-              group: 'Análise & Evolução',
+              group: 'Análise & Evidências',
               items: [
-                { id: 'charts', icon: ChartIcon, label: 'Gráficos & Análise' }
+                { id: 'charts', icon: ChartIcon, label: 'Gráficos & Análise' },
+                { id: 'science', icon: FlaskConical, label: 'Biociências & Bulas', badge: 'Grátis' }
               ]
             },
             {
@@ -940,11 +1171,12 @@ export const PatientView: React.FC<PatientViewProps> = ({
                 return (
                   <button
                     key={t.id}
+                    type="button"
                     onClick={() => {
                       setActiveTab(t.id as TabType);
                       setSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold select-none transition-all ${
+                    className={`w-full flex items-center gap-3 py-2 px-3 rounded-xl text-xs font-semibold select-none transition-all cursor-pointer ${
                       isActive
                         ? 'bg-[#1FBCC4]/10 dark:bg-[#1FBCC4]/20 text-[#062B63] dark:text-[#24C4D1] font-bold border-l-2 border-[#1FBCC4]'
                         : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -1008,46 +1240,84 @@ export const PatientView: React.FC<PatientViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Cloud Sync Status Pill */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('devices')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all cursor-pointer ${
-                cloudSyncStatus === 'syncing'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50'
-              }`}
-              title="Sincronização em Nuvem Ativa. Toque para ver Dispositivos & Sensores"
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${cloudSyncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-emerald-500 animate-pulse'}`} />
-              <span className="hidden sm:inline">{cloudSyncStatus === 'syncing' ? 'Sincronizando...' : 'Nuvem Conectada'}</span>
-            </button>
+            {/* Live Save / Cloud Sync Status Pill */}
+            {saveFeedback.status === 'saving' ? (
+              <div
+                className="h-8 flex items-center gap-1.5 px-3 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50 animate-pulse select-none"
+                role="status"
+                aria-live="polite"
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                <span>Salvando...</span>
+              </div>
+            ) : saveFeedback.status === 'saved' ? (
+              <div
+                className="h-8 flex items-center gap-1.5 px-3 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50 select-none animate-in fade-in"
+                role="status"
+                aria-live="polite"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Salvo às {saveFeedback.timestamp?.slice(0, 5)}</span>
+              </div>
+            ) : (
+              <Tooltip
+                title="Sincronização com a nuvem"
+                content="Seus dados estão protegidos e sincronizados com segurança no Firestore. Toque para gerenciar dispositivos e telemetria de sensores."
+                position="bottom"
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('devices')}
+                  className={`h-8 flex items-center gap-1.5 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    cloudSyncStatus === 'syncing'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-emerald-500 animate-pulse'}`} />
+                  <span className="hidden sm:inline">{cloudSyncStatus === 'syncing' ? 'Sincronizando...' : 'Nuvem Conectada'}</span>
+                </button>
+              </Tooltip>
+            )}
             <ThemeToggle />
-            <button
-              onClick={() => setActiveTab('notif')}
-              className="p-1.5 border border-slate-100 dark:border-slate-800 rounded-xl relative text-slate-400 hover:text-slate-600"
-              aria-label="Ver caixa de avisos"
+            <Tooltip
+              title="Notificações e lembretes"
+              content="Veja avisos de medicação, lembretes de questionários periódicos e comunicados do seu médico."
+              position="bottom"
             >
-              <Bell className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className="p-1.5 border border-slate-100 dark:border-slate-800 rounded-xl text-slate-400 hover:text-slate-600"
-              aria-label="Configurações do perfil"
+              <button
+                onClick={() => setActiveTab('notif')}
+                className="h-8 w-8 flex items-center justify-center border border-slate-100 dark:border-slate-800 rounded-xl relative text-slate-400 hover:text-slate-600 cursor-pointer"
+                aria-label="Ver caixa de avisos"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                )}
+              </button>
+            </Tooltip>
+            <Tooltip
+              title="Configurações do perfil"
+              content="Ajuste diagnósticos, medicamentos contínuos, dados biométricos e preferências de notificação."
+              position="bottom"
             >
-              <Settings className="w-4 h-4" />
-            </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className="h-8 w-8 flex items-center justify-center border border-slate-100 dark:border-slate-800 rounded-xl text-slate-400 hover:text-slate-600 cursor-pointer"
+                aria-label="Configurações do perfil"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </Tooltip>
           </div>
         </header>
 
         {/* Tab views layout switcher */}
         <main className="flex-1 p-4 sm:p-6 max-w-4xl w-full mx-auto pb-24">
-          {activeTab === 'home' && (
+          <div key={activeTab} className="animate-fade-in-up">
+            {activeTab === 'home' && (
             <div className="space-y-5">
-              {/* 1. WELCOME & TODAY STATUS BANNER */}
+              {/* 1. WELCOME & TODAY STATUS BANNER (HUMANIZED COPY - ETAPA 7) */}
               <div className="bg-gradient-to-r from-teal-500/10 via-teal-50/50 to-white dark:from-teal-950/30 dark:via-slate-900 dark:to-slate-900 border border-teal-500/20 dark:border-teal-800/30 p-5 sm:p-6 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1056,11 +1326,11 @@ export const PatientView: React.FC<PatientViewProps> = ({
                     </span>
                     {logs.find((l) => l.date === todayISO()) ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                        ✓ Hoje Preenchido
+                        ✓ Hoje Registrado
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 animate-pulse">
-                        ⏳ Diário Pendente
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                        Você ainda não registrou como está hoje
                       </span>
                     )}
                     {riskResult.enough && (
@@ -1071,7 +1341,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                           : 'bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300'
                       }`}>
-                        {riskResult.level === 'HIGH' ? '⚠️ Risco de Crise' : riskResult.level === 'MODERATE' ? '⚡ Oscilação de Sintomas' : '🛡️ Estável'}
+                        {riskResult.level === 'HIGH' ? '⚠️ Atenção a Sintomas' : riskResult.level === 'MODERATE' ? '⚡ Oscilação Leve' : '🛡️ Estável'}
                       </span>
                     )}
                   </div>
@@ -1080,22 +1350,165 @@ export const PatientView: React.FC<PatientViewProps> = ({
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                     {logs.find((l) => l.date === todayISO())
-                      ? 'Seus dados de hoje já estão registrados. Acompanhe a evolução das suas métricas abaixo.'
-                      : 'Registre como você está se sentindo hoje para manter o RITMMA MAP atualizado.'}
+                      ? 'Seus dados de hoje já estão registrados. Acompanhe seu mapa e evolução abaixo.'
+                      : 'Registre como você está se sentindo hoje de forma simples e acolhedora.'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200/60 dark:border-teal-800 text-xs font-bold flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-teal-500" />
+                    <span>{logs.find((l) => l.date === todayISO()) ? '✓ Hoje registrado' : 'Registro pendente'}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. CARD "1. COMO ESTOU HOJE?" (MÉTRICAS CONDENSADAS DO DIA) */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <Heart className="w-4 h-4 text-rose-500" />
+                    <span>1. Como estou hoje?</span>
+                    <InfoTooltip
+                      title="Resumo do Dia"
+                      content="Visão consolidada dos principais parâmetros informados no diário de hoje."
+                    />
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${todayLog ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                    {todayLog ? 'Preenchido' : 'Pendente'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-100 dark:border-slate-800 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Dor Geral</span>
+                    <strong className={`text-lg font-black block mt-0.5 ${todayLog?.pain != null ? (todayLog.pain >= 7 ? 'text-rose-600' : todayLog.pain >= 4 ? 'text-amber-600' : 'text-emerald-600') : 'text-slate-400'}`}>
+                      {todayLog?.pain != null ? `${todayLog.pain}/10` : '-'}
+                    </strong>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-100 dark:border-slate-800 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Fadiga</span>
+                    <strong className={`text-lg font-black block mt-0.5 ${todayLog?.fatigue != null ? (todayLog.fatigue >= 7 ? 'text-amber-600' : 'text-sky-600') : 'text-slate-400'}`}>
+                      {todayLog?.fatigue != null ? `${todayLog.fatigue}/10` : '-'}
+                    </strong>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-100 dark:border-slate-800 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Sono</span>
+                    <strong className="text-lg font-black text-indigo-600 dark:text-indigo-400 block mt-0.5">
+                      {todayLog?.sleep != null ? `${todayLog.sleep}h` : '-'}
+                    </strong>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-100 dark:border-slate-800 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Humor</span>
+                    <strong className="text-lg font-black text-teal-600 dark:text-teal-400 block mt-0.5">
+                      {todayLog?.mood != null ? `${todayLog.mood}/5` : '-'}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex items-center justify-end">
                   <button
+                    type="button"
                     onClick={() => setActiveTab('diary')}
-                    className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold bg-teal-500 hover:bg-teal-600 text-white rounded-xl shadow-md transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                    className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    <Calendar className="w-4 h-4" />
-                    {logs.find((l) => l.date === todayISO()) ? 'Atualizar Diário' : 'Registrar Hoje'}
+                    <span>{todayLog ? 'Editar registro do diário' : 'Preencher diário completo'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
 
-              {/* ALERT BANNER ONLY WHEN ATTENTION IS NEEDED */}
+              {/* 3. CARD "2. O QUE REGISTRAR?" (GRADE LIMPA DE 4 ATALHOS DIRETOS) */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <PlusCircle className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                    <span>2. O que registrar?</span>
+                    <InfoTooltip
+                      title="Módulos Clínicos"
+                      content="Acesse o módulo desejado de forma rápida e focada, sem sobreposição de parâmetros."
+                    />
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('diary')}
+                    className="p-3.5 bg-slate-50 hover:bg-teal-50/60 dark:bg-slate-850/60 dark:hover:bg-teal-950/20 border border-slate-200/80 hover:border-teal-400 dark:border-slate-800 dark:hover:border-teal-700 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[96px]"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-1 group-hover:scale-105 transition-transform shrink-0">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                        Diário Rápido
+                      </span>
+                      <span className="text-[10px] text-slate-400 block truncate">
+                        Dor, sono e fadiga
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('bodymap')}
+                    className="p-3.5 bg-slate-50 hover:bg-rose-50/60 dark:bg-slate-850/60 dark:hover:bg-rose-950/20 border border-slate-200/80 hover:border-rose-400 dark:border-slate-800 dark:hover:border-rose-700 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[96px]"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-1 group-hover:scale-105 transition-transform shrink-0">
+                      <Activity className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate group-hover:text-rose-600 dark:group-hover:text-rose-400">
+                        Mapa Corporal
+                      </span>
+                      <span className="text-[10px] text-slate-400 block truncate">
+                        Mapear dor física
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('medications')}
+                    className="p-3.5 bg-slate-50 hover:bg-sky-50/60 dark:bg-slate-850/60 dark:hover:bg-sky-950/20 border border-slate-200/80 hover:border-sky-400 dark:border-slate-800 dark:hover:border-sky-700 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[96px]"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-1 group-hover:scale-105 transition-transform shrink-0">
+                      <Pill className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate group-hover:text-sky-600 dark:group-hover:text-sky-400">
+                        Medicamentos
+                      </span>
+                      <span className="text-[10px] text-slate-400 block truncate">
+                        Horários e doses
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('episodes')}
+                    className="p-3.5 bg-slate-50 hover:bg-amber-50/60 dark:bg-slate-850/60 dark:hover:bg-amber-950/20 border border-slate-200/80 hover:border-amber-400 dark:border-slate-800 dark:hover:border-amber-700 rounded-2xl text-left transition-all cursor-pointer group flex flex-col justify-between min-h-[96px]"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-1 group-hover:scale-105 transition-transform shrink-0">
+                      <Flame className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate group-hover:text-amber-600 dark:group-hover:text-amber-400">
+                        Crise SOS
+                      </span>
+                      <span className="text-[10px] text-slate-400 block truncate">
+                        Pico e alívio agudo
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. AVISO DE RISCO DISCRETO (SE RELEVANTE) */}
               {riskResult.level !== 'LOW' && (
                 <div className={`p-4 rounded-2xl border flex items-start gap-3 text-xs ${
                   riskResult.level === 'HIGH'
@@ -1109,73 +1522,78 @@ export const PatientView: React.FC<PatientViewProps> = ({
                     </strong>
                     <p className="opacity-90 text-[11px] leading-relaxed">
                       {riskResult.level === 'HIGH'
-                        ? 'Variações acentuadas identificadas em dor e fadiga recentemente. Priorize descanso, hidratação e evite esforço físico acentuado.'
-                        : 'Identificamos pequenas oscilações de sintomas nos últimos dias. Fique atento aos sinais do seu corpo e mantenha a rotina de descanso.'}
+                        ? 'Variações acentuadas identificadas em dor e fadiga recentemente. Priorize descanso, hidratação e evite esforço físico.'
+                        : 'Pequenas oscilações identificadas nos últimos dias. Fique atento aos sinais do seu corpo e mantenha a rotina.'}
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* DICA DO DIA (BASEADA EM EVIDÊNCIAS CLÍNICAS & SINTOMAS RECENTES) */}
-              <TipOfTheDay
-                patientData={pd}
-                onOpenEvidenceModal={() => setShowRefsModal(true)}
-              />
+              {/* 5. TENDÊNCIA DE EVOLUÇÃO (7d vs 30d) */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-2xs space-y-2">
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                    <TrendingUp className="w-3.5 h-3.5 shrink-0" /> Tendência de Evolução
+                    <InfoTooltip
+                      title="Indicador de Tendência"
+                      content="Compara a média de dor dos últimos 7 dias com os últimos 30 dias para identificar estabilização ou oscilação."
+                    />
+                  </span>
+                  <span className={`text-[10px] font-black shrink-0 ${evolutionSummary.trendColor}`}>
+                    {evolutionSummary.trendLabel}
+                  </span>
+                </div>
 
-              {/* 2. RITMMA MAP (GRÁFICO HERO PRINCIPAL) */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-3xl shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-r from-[#1FBCC4] via-[#3975E3] to-[#9251E5] inline-block animate-pulse" />
-                      <h3 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        RITMMA MAP
-                        <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 rounded-full border border-teal-200 dark:border-teal-900/60 uppercase tracking-wider">
-                          Evolução Multidimensional
-                        </span>
-                      </h3>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Visão integrada da relação entre sintomas, hábitos e fatores modulares.
-                    </p>
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-slate-400 text-xs">Média Dor (7 dias):</span>
+                    <strong className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                      {evolutionSummary.avgPain7 ? `${evolutionSummary.avgPain7}/10` : 'Sem dados'}
+                    </strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-slate-400 text-xs">Média Dor (30 dias):</span>
+                    <strong className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                      {evolutionSummary.avgPain30 ? `${evolutionSummary.avgPain30}/10` : 'Sem dados'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. RITMMA MAP (GRÁFICO DE EVOLUÇÃO MULTIDIMENSIONAL) */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-gradient-to-r from-[#1FBCC4] via-[#3975E3] to-[#9251E5] inline-block animate-pulse" />
+                    <h3 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      RITMMA MAP
+                      <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 rounded-full border border-teal-200 dark:border-teal-900/60 uppercase tracking-wider">
+                        Evolução Multidimensional
+                      </span>
+                    </h3>
                   </div>
 
-                  {/* Time range selector & customize button */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                      {[
-                        { label: '7d', val: 7 },
-                        { label: '14d', val: 14 },
-                        { label: '30d', val: 30 },
-                        { label: '60d', val: 60 }
-                      ].map((t) => (
-                        <button
-                          key={t.val}
-                          onClick={() => setCoverTimeRange(t.val)}
-                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                            coverTimeRange === t.val
-                              ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-[#1FBCC4] shadow-xs'
-                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTab('charts');
-                        setTimeout(() => {
-                          document.getElementById('sec-360-customizer')?.scrollIntoView({ behavior: 'smooth' });
-                        }, 100);
-                      }}
-                      className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Sliders className="w-3.5 h-3.5 text-teal-100" />
-                      Personalizar Indicadores
-                    </button>
+                  {/* Time range selector */}
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+                    {[
+                      { label: '7d', val: 7 },
+                      { label: '14d', val: 14 },
+                      { label: '30d', val: 30 },
+                      { label: '60d', val: 60 }
+                    ].map((t) => (
+                      <button
+                        key={t.val}
+                        type="button"
+                        onClick={() => setCoverTimeRange(t.val)}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                          coverTimeRange === t.val
+                            ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-[#1FBCC4] shadow-xs'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -1207,13 +1625,13 @@ export const PatientView: React.FC<PatientViewProps> = ({
                     });
 
                     return (
-                      <div className="space-y-4">
-                        <div className="h-64 sm:h-72 w-full pt-2">
+                      <div className="space-y-3">
+                        <div className="h-60 sm:h-64 w-full pt-1">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                               <defs>
                                 {activeSeriesKeys.map((key) => (
-                                  <linearGradient key={`grad-${key}`} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                  <linearGradient key={`grad-home-${key}`} id={`grad-home-${key}`} x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor={paramDefs[key].color} stopOpacity={0.2} />
                                     <stop offset="100%" stopColor={paramDefs[key].color} stopOpacity={0.0} />
                                   </linearGradient>
@@ -1254,7 +1672,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
                                       type="monotone"
                                       dataKey={key}
                                       stroke="none"
-                                      fill={`url(#grad-${key})`}
+                                      fill={`url(#grad-home-${key})`}
                                     />
                                   )}
                                   <RechartsLine
@@ -1274,13 +1692,13 @@ export const PatientView: React.FC<PatientViewProps> = ({
                         </div>
 
                         {/* Legend Tags */}
-                        <div className="flex flex-wrap items-center justify-center gap-2.5 text-xs border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                        <div className="flex flex-wrap items-center justify-center gap-2 text-xs border-t border-slate-100 dark:border-slate-800/80 pt-2.5">
                           {activeSeriesKeys.map((key) => {
                             const p = paramDefs[key];
                             return (
                               <div
                                 key={key}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60"
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-700/60"
                               >
                                 <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: p.color }} />
                                 <span className="font-semibold text-slate-700 dark:text-slate-200 text-[11px]">{p.name}</span>
@@ -1292,247 +1710,37 @@ export const PatientView: React.FC<PatientViewProps> = ({
                     );
                   })()
                 ) : (
-                  <div className="text-center py-10 bg-slate-50/50 dark:bg-slate-850/30 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                    <span className="text-3xl block mb-2">📊</span>
+                  <div className="text-center py-8 bg-slate-50/50 dark:bg-slate-850/30 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                    <span className="text-2xl block mb-1">📊</span>
                     <h4 className="font-poppins font-bold text-xs text-slate-700 dark:text-slate-300">
                       RITMMA MAP em Calibração
                     </h4>
                     <p className="text-[11px] text-slate-400 max-w-xs mx-auto mt-1 leading-normal">
                       Preencha o diário por pelo menos 2 dias para visualizar suas curvas no RITMMA MAP.
                     </p>
-                    <button
-                      onClick={() => setActiveTab('diary')}
-                      className="mt-3 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
-                    >
-                      Preencher Diário Agora
-                    </button>
                   </div>
                 )}
+
+                {/* BOTÃO VER GRÁFICOS COMPLETOS (sem mais descrições) */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('charts')}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-teal-500 hover:bg-teal-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                  >
+                    <span>Ver gráficos completos</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              {/* 3. PAINEL DE SÍNTESE EM 3 CARDS INTEGRADOS */}
-              {(() => {
-                const recentLogs = logs.slice(-10);
-                const sleepValues = recentLogs.map((l) => l.sleep ?? 0);
-                const avgSleep = sleepValues.length
-                  ? (sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length).toFixed(1)
-                  : '5.6';
-
-                const recent7Pain = logs.slice(-7).map((l) => l.pain).filter((p) => p != null) as number[];
-                const avgPain7 = recent7Pain.length
-                  ? (recent7Pain.reduce((a, b) => a + b, 0) / recent7Pain.length).toFixed(1)
-                  : '-';
-
-                const recent7Fatigue = logs.slice(-7).map((l) => l.fatigue).filter((f) => f != null) as number[];
-                const avgFatigue7 = recent7Fatigue.length
-                  ? (recent7Fatigue.reduce((a, b) => a + b, 0) / recent7Fatigue.length).toFixed(1)
-                  : '-';
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                    {/* CARD 1: QUALIDADE DO SONO */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-3">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                          <Moon className="w-3.5 h-3.5 text-sky-500" /> Qualidade do Sono
-                        </span>
-                        <span className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-md">
-                          Média Recente
-                        </span>
-                      </div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <div>
-                          <strong className="text-2xl font-black text-slate-800 dark:text-slate-100">{avgSleep} h</strong>
-                          <span className="text-[10px] text-slate-400 block mt-0.5">horas por noite</span>
-                        </div>
-                        {/* Sparkline Bar Chart */}
-                        <div className="flex items-end gap-1 h-8">
-                          {sleepValues.slice(-7).map((val, idx) => {
-                            const heightPct = Math.min(100, Math.max(15, (val / 10) * 100));
-                            return (
-                              <div
-                                key={idx}
-                                style={{ height: `${heightPct}%` }}
-                                className="w-2 bg-sky-400 dark:bg-sky-500 rounded-t-xs transition-all"
-                                title={`Sono: ${val}h`}
-                              />
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* CARD 2: FREQUÊNCIA DE REGISTROS (HEATMAP CLEAN) */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-2.5">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-[#1FBCC4]" /> Frequência de Diário
-                        </span>
-                        <span className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md">
-                          30 dias
-                        </span>
-                      </div>
-                      <div className="pt-0.5">
-                        <CalendarHeatmap logs={logs.slice(-30)} field="pain" />
-                      </div>
-                    </div>
-
-                    {/* CARD 3: SÍNTESE DE DOR E FADIGA */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-3">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                          <Activity className="w-3.5 h-3.5 text-rose-500" /> Dor & Fadiga (7d)
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-semibold">Médias</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <div className="text-xs font-bold text-rose-500">Média Dor: {avgPain7} / 10</div>
-                          <div className="text-xs font-bold text-amber-500">Média Fadiga: {avgFatigue7} / 10</div>
-                        </div>
-                        {/* Sparkline dual line */}
-                        <div className="w-16 h-8 relative shrink-0">
-                          <svg className="w-16 h-8" viewBox="0 0 60 30">
-                            {recentLogs.length >= 2 && (
-                              <polyline
-                                fill="none"
-                                stroke="#f43f5e"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                points={recentLogs
-                                  .slice(-7)
-                                  .map((l, idx) => {
-                                    const x = (idx / 6) * 60;
-                                    const y = 30 - ((l.pain ?? 0) / 10) * 26 - 2;
-                                    return `${x},${y}`;
-                                  })
-                                  .join(' ')}
-                              />
-                            )}
-                            {recentLogs.length >= 2 && (
-                              <polyline
-                                fill="none"
-                                stroke="#f59e0b"
-                                strokeWidth="2"
-                                strokeDasharray="3,2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                points={recentLogs
-                                  .slice(-7)
-                                  .map((l, idx) => {
-                                    const x = (idx / 6) * 60;
-                                    const y = 30 - ((l.fatigue ?? 0) / 10) * 26 - 2;
-                                    return `${x},${y}`;
-                                  })
-                                  .join(' ')}
-                              />
-                            )}
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-               {/* 4. SILHUETA ANATÔMICA & REGISTRO VISUAL DE DOR (INTEGRADO NA TELA PRINCIPAL) */}
-               <div className="pt-1">
-                 <BodyPainMap
-                   logs={logs}
-                   onSaveLog={handleSaveLog}
-                   patientData={pd}
-                   onUpdatePatientData={(updater) => {
-                     onUpdateData((prev) => {
-                       const profile = prev.patientData[account.id];
-                       if (profile) {
-                         updater(profile);
-                       }
-                     });
-                   }}
-                   isEmbedded={true}
-                 />
-               </div>
-
-               {/* 5. ATALHOS RÁPIDOS DE NAVEGAÇÃO */}
-               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                 <button
-                   onClick={() => setActiveTab('diary')}
-                   className="bg-white dark:bg-slate-900 border border-slate-200 hover:border-teal-400 dark:border-slate-800 dark:hover:border-teal-600 p-4 rounded-2xl shadow-2xs text-left transition-all group flex flex-col justify-between cursor-pointer"
-                 >
-                   <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
-                     <Calendar className="w-5 h-5" />
-                   </div>
-                   <div>
-                     <span className="font-poppins font-bold text-xs text-slate-800 dark:text-slate-100 block group-hover:text-teal-600 dark:group-hover:text-teal-400">
-                       Diário de Sintomas
-                     </span>
-                     <span className="text-[10px] text-slate-400 block mt-0.5">
-                       {logs.find((l) => l.date === todayISO()) ? '✓ Atualizar hoje' : 'Registrar dia'}
-                     </span>
-                   </div>
-                 </button>
-
-                 <button
-                   onClick={() => setActiveTab('medications')}
-                   className="bg-white dark:bg-slate-900 border border-slate-200 hover:border-blue-400 dark:border-slate-800 dark:hover:border-blue-600 p-4 rounded-2xl shadow-2xs text-left transition-all group flex flex-col justify-between cursor-pointer"
-                 >
-                   <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
-                     <Pill className="w-5 h-5" />
-                   </div>
-                   <div>
-                     <span className="font-poppins font-bold text-xs text-slate-800 dark:text-slate-100 block group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                       Medicamentos
-                     </span>
-                     <span className="text-[10px] text-slate-400 block mt-0.5">
-                       Horários & Doses
-                     </span>
-                   </div>
-                 </button>
-
-                 <button
-                   onClick={() => {
-                     const el = document.getElementById('pain-history-silhouette');
-                     if (el) {
-                       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                     } else {
-                       setActiveTab('bodymap');
-                     }
-                   }}
-                   className="bg-white dark:bg-slate-900 border border-slate-200 hover:border-rose-400 dark:border-slate-800 dark:hover:border-rose-600 p-4 rounded-2xl shadow-2xs text-left transition-all group flex flex-col justify-between cursor-pointer"
-                 >
-                   <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
-                     <Activity className="w-5 h-5" />
-                   </div>
-                   <div>
-                     <span className="font-poppins font-bold text-xs text-slate-800 dark:text-slate-100 block group-hover:text-rose-600 dark:group-hover:text-rose-400">
-                       Mapa Corporal
-                     </span>
-                     <span className="text-[10px] text-slate-400 block mt-0.5">
-                       Pontos de dor no corpo
-                     </span>
-                   </div>
-                 </button>
-
-                 <button
-                   onClick={() => setActiveTab('achievements')}
-                   className="bg-white dark:bg-slate-900 border border-slate-200 hover:border-amber-400 dark:border-slate-800 dark:hover:border-amber-600 p-4 rounded-2xl shadow-2xs text-left transition-all group flex flex-col justify-between cursor-pointer"
-                 >
-                   <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
-                     <Trophy className="w-5 h-5" />
-                   </div>
-                   <div>
-                     <span className="font-poppins font-bold text-xs text-slate-800 dark:text-slate-100 block group-hover:text-amber-600 dark:group-hover:text-amber-400">
-                       Conquistas
-                     </span>
-                     <span className="text-[10px] text-slate-400 block mt-0.5">
-                       Medalhas de hábito
-                     </span>
-                   </div>
-                 </button>
-               </div>
-             </div>
-           )}
+              {/* 6. DICA DO DIA CLÍNICA */}
+              <TipOfTheDay
+                patientData={pd}
+                onOpenEvidenceModal={() => setShowRefsModal(true)}
+              />
+            </div>
+          )}
 
           {activeTab === 'diary' && (
             <PatientDiary
@@ -1541,6 +1749,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
               onSaveLog={handleSaveLog}
               onUpdatePatientProfile={handleUpdatePatientProfile}
               onBack={() => setActiveTab('home')}
+              cloudSyncStatus={cloudSyncStatus}
             />
           )}
 
@@ -1586,14 +1795,14 @@ export const PatientView: React.FC<PatientViewProps> = ({
             <div className="space-y-6">
               <div>
                 <h2 className="font-poppins font-bold text-xl text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2 animate-fade-in">
-                  <Activity className="w-5 h-5 text-teal-500" /> Mapa Anatômico de Dor Localizada
+                  <Activity className="w-5 h-5 text-teal-500" /> Mapa de Dor Diário (Fluxo em 3 Etapas)
                 </h2>
                 <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">
-                  Selecione e classifique as áreas com dor para gerar o seu mapa de sensibilidade clínica e tender points.
+                  Marcação diária e rápida: 1) Seleção de áreas, 2) Intensidade e 3) Notas, sem repetição de parâmetros do diário.
                 </p>
               </div>
 
-              <BodyPainMap
+              <DailyPainMap
                 logs={logs}
                 onSaveLog={handleSaveLog}
                 patientData={pd}
@@ -1604,6 +1813,9 @@ export const PatientView: React.FC<PatientViewProps> = ({
                       updater(profile);
                     }
                   });
+                }}
+                onFinish={() => {
+                  notifySaved('✓ Registro concluído!', 'Seu mapa de dor e sintomas foram salvos no diário.');
                 }}
               />
             </div>
@@ -2403,6 +2615,298 @@ export const PatientView: React.FC<PatientViewProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {/* RITMMA MAP (GRÁFICO DE EVOLUÇÃO MULTIDIMENSIONAL) */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-3xl shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-r from-[#1FBCC4] via-[#3975E3] to-[#9251E5] inline-block animate-pulse" />
+                          <h3 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            RITMMA MAP
+                            <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 rounded-full border border-teal-200 dark:border-teal-900/60 uppercase tracking-wider">
+                              Evolução Multidimensional
+                            </span>
+                          </h3>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          Visão integrada da relação entre sintomas, hábitos e fatores modulares.
+                        </p>
+                      </div>
+
+                      {/* Time range selector */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                          {[
+                            { label: '7d', val: 7 },
+                            { label: '14d', val: 14 },
+                            { label: '30d', val: 30 },
+                            { label: '60d', val: 60 }
+                          ].map((t) => (
+                            <button
+                              key={t.val}
+                              onClick={() => setCoverTimeRange(t.val)}
+                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                                coverTimeRange === t.val
+                                  ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-[#1FBCC4] shadow-xs'
+                                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {logs.length >= 2 ? (
+                      (() => {
+                        const activeLogs = logs.slice(-coverTimeRange);
+                        const paramDefs: Record<string, { key: string; name: string; color: string; getValue: (l: DailyLog) => number | null }> = {
+                          pain: { key: 'pain', name: 'Dor', color: '#f43f5e', getValue: (l) => l.pain ?? null },
+                          fatigue: { key: 'fatigue', name: 'Fadiga', color: '#f59e0b', getValue: (l) => l.fatigue ?? null },
+                          sleep: { key: 'sleep', name: 'Sono', color: '#3b82f6', getValue: (l) => l.sleep ?? null },
+                          function: { key: 'function', name: 'Capacidade Funcional', color: '#10b981', getValue: (l) => l.function ?? null },
+                          weather: { key: 'weather', name: 'Temperatura (°C)', color: '#06b6d4', getValue: (l) => l.weather?.temp ?? null },
+                          stress: { key: 'stress', name: 'Estresse', color: '#8b5cf6', getValue: (l) => l.stressWork ?? (l.triggers?.includes('Estresse') ? 7 : 3) },
+                          activity: { key: 'activity', name: 'Atividade Física', color: '#6366f1', getValue: (l) => l.exercise?.duration ? 7 : 4 },
+                          mood: { key: 'mood', name: 'Humor', color: '#ec4899', getValue: (l) => l.mood ?? 3 },
+                        };
+
+                        const activeSeriesKeys = pinnedCoverParams.filter((k) => paramDefs[k]);
+
+                        const chartData = activeLogs.map((l) => {
+                          const entry: any = {
+                            date: l.date ? l.date.split('-').slice(1).join('/') : '',
+                            rawDate: l.date
+                          };
+                          activeSeriesKeys.forEach((key) => {
+                            entry[key] = paramDefs[key].getValue(l);
+                          });
+                          return entry;
+                        });
+
+                        return (
+                          <div className="space-y-4">
+                            <div className="h-64 sm:h-72 w-full pt-2">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                  <defs>
+                                    {activeSeriesKeys.map((key) => (
+                                      <linearGradient key={`grad-${key}`} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={paramDefs[key].color} stopOpacity={0.2} />
+                                        <stop offset="100%" stopColor={paramDefs[key].color} stopOpacity={0.0} />
+                                      </linearGradient>
+                                    ))}
+                                  </defs>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" opacity={0.2} />
+                                  <XAxis
+                                    dataKey="date"
+                                    tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                    axisLine={{ stroke: '#cbd5e1' }}
+                                    tickLine={false}
+                                  />
+                                  <YAxis
+                                    domain={[0, 10]}
+                                    tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                  />
+                                  <RechartsTooltip
+                                    contentStyle={{
+                                      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                      borderColor: '#334155',
+                                      borderRadius: '0.75rem',
+                                      color: '#f8fafc',
+                                      fontSize: '0.75rem',
+                                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)'
+                                    }}
+                                    formatter={(val: any, name: any) => {
+                                      const param = paramDefs[name] || Object.values(paramDefs).find(p => p.name === name);
+                                      return [val != null ? `${val}` : '-', param ? param.name : name];
+                                    }}
+                                    labelFormatter={(lbl: string) => `Data: ${lbl}`}
+                                  />
+                                  {activeSeriesKeys.map((key, index) => (
+                                    <React.Fragment key={key}>
+                                      {index === 0 && (
+                                        <Area
+                                          type="monotone"
+                                          dataKey={key}
+                                          stroke="none"
+                                          fill={`url(#grad-${key})`}
+                                        />
+                                      )}
+                                      <RechartsLine
+                                        type="monotone"
+                                        dataKey={key}
+                                        name={paramDefs[key].name}
+                                        stroke={paramDefs[key].color}
+                                        strokeWidth={2.8}
+                                        dot={{ r: 3, fill: '#ffffff', stroke: paramDefs[key].color, strokeWidth: 2 }}
+                                        activeDot={{ r: 6, fill: paramDefs[key].color, stroke: '#ffffff', strokeWidth: 2 }}
+                                        connectNulls
+                                      />
+                                    </React.Fragment>
+                                  ))}
+                                </ComposedChart>
+                              </ResponsiveContainer>
+                            </div>
+
+                            {/* Legend Tags */}
+                            <div className="flex flex-wrap items-center justify-center gap-2.5 text-xs border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                              {activeSeriesKeys.map((key) => {
+                                const p = paramDefs[key];
+                                return (
+                                  <div
+                                    key={key}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60"
+                                  >
+                                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: p.color }} />
+                                    <span className="font-semibold text-slate-700 dark:text-slate-200 text-[11px]">{p.name}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="text-center py-10 bg-slate-50/50 dark:bg-slate-850/30 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                        <span className="text-3xl block mb-2">📊</span>
+                        <h4 className="font-poppins font-bold text-xs text-slate-700 dark:text-slate-300">
+                          RITMMA MAP em Calibração
+                        </h4>
+                        <p className="text-[11px] text-slate-400 max-w-xs mx-auto mt-1 leading-normal">
+                          Preencha o diário por pelo menos 2 dias para visualizar suas curvas no RITMMA MAP.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PAINEL DE SÍNTESE EM 3 CARDS INTEGRADOS */}
+                  {(() => {
+                    const recentLogs = logs.slice(-10);
+                    const sleepValues = recentLogs.map((l) => l.sleep ?? 0);
+                    const avgSleep = sleepValues.length
+                      ? (sleepValues.reduce((a, b) => a + b, 0) / sleepValues.length).toFixed(1)
+                      : '5.6';
+
+                    const recent7Pain = logs.slice(-7).map((l) => l.pain).filter((p) => p != null) as number[];
+                    const avgPain7 = recent7Pain.length
+                      ? (recent7Pain.reduce((a, b) => a + b, 0) / recent7Pain.length).toFixed(1)
+                      : '-';
+
+                    const recent7Fatigue = logs.slice(-7).map((l) => l.fatigue).filter((f) => f != null) as number[];
+                    const avgFatigue7 = recent7Fatigue.length
+                      ? (recent7Fatigue.reduce((a, b) => a + b, 0) / recent7Fatigue.length).toFixed(1)
+                      : '-';
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        {/* CARD 1: QUALIDADE DO SONO */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                              <Moon className="w-3.5 h-3.5 text-sky-500" /> Qualidade do Sono
+                            </span>
+                            <span className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-md">
+                              Média Recente
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div>
+                              <strong className="text-2xl font-black text-slate-800 dark:text-slate-100">{avgSleep} h</strong>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">horas por noite</span>
+                            </div>
+                            <div className="flex items-end gap-1 h-8">
+                              {sleepValues.slice(-7).map((val, idx) => {
+                                const heightPct = Math.min(100, Math.max(15, (val / 10) * 100));
+                                return (
+                                  <div
+                                    key={idx}
+                                    style={{ height: `${heightPct}%` }}
+                                    className="w-2 bg-sky-400 dark:bg-sky-500 rounded-t-xs transition-all"
+                                    title={`Sono: ${val}h`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* CARD 2: FREQUÊNCIA DE REGISTROS (HEATMAP CLEAN) */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-2.5">
+                          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-[#1FBCC4]" /> Frequência de Diário
+                            </span>
+                            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 rounded-md">
+                              30 dias
+                            </span>
+                          </div>
+                          <div className="pt-0.5">
+                            <CalendarHeatmap logs={logs.slice(-30)} field="pain" />
+                          </div>
+                        </div>
+
+                        {/* CARD 3: SÍNTESE DE DOR E FADIGA */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs flex flex-col justify-between space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                              <Activity className="w-3.5 h-3.5 text-rose-500" /> Dor & Fadiga (7d)
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-semibold">Médias</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="space-y-0.5">
+                              <div className="text-xs font-bold text-rose-500">Média Dor: {avgPain7} / 10</div>
+                              <div className="text-xs font-bold text-amber-500">Média Fadiga: {avgFatigue7} / 10</div>
+                            </div>
+                            <div className="w-16 h-8 relative shrink-0">
+                              <svg className="w-16 h-8" viewBox="0 0 60 30">
+                                {recentLogs.length >= 2 && (
+                                  <polyline
+                                    fill="none"
+                                    stroke="#f43f5e"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    points={recentLogs
+                                      .slice(-7)
+                                      .map((l, idx) => {
+                                        const x = (idx / 6) * 60;
+                                        const y = 30 - ((l.pain ?? 0) / 10) * 26 - 2;
+                                        return `${x},${y}`;
+                                      })
+                                      .join(' ')}
+                                  />
+                                )}
+                                {recentLogs.length >= 2 && (
+                                  <polyline
+                                    fill="none"
+                                    stroke="#f59e0b"
+                                    strokeWidth="2"
+                                    strokeDasharray="3,2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    points={recentLogs
+                                      .slice(-7)
+                                      .map((l, idx) => {
+                                        const x = (idx / 6) * 60;
+                                        const y = 30 - ((l.fatigue ?? 0) / 10) * 26 - 2;
+                                        return `${x},${y}`;
+                                      })
+                                      .join(' ')}
+                                  />
+                                )}
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -3832,50 +4336,100 @@ export const PatientView: React.FC<PatientViewProps> = ({
                   }
                 ];
 
-                return (
-                  <div className="space-y-3">
-                    {appNotifs.map((item) => {
-                      const IconComp = item.icon;
-                      return (
-                        <div
-                          key={item.id}
-                          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-5 rounded-2xl shadow-xs space-y-3 transition-all hover:border-slate-300 dark:hover:border-slate-700"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-                                <IconComp className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${item.categoryColor}`}>
-                                  {item.category}
-                                </span>
-                                <h4 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100 mt-1">
-                                  {item.title}
-                                </h4>
-                              </div>
-                            </div>
-                          </div>
+                    const allItemIds = appNotifs.map((n) => n.id);
+                    const unreadItemsCount = appNotifs.filter((n) => !readNotifIds.includes(n.id)).length;
 
-                          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium pl-0 sm:pl-10">
-                            {item.description}
-                          </p>
-
-                          <div className="pt-1 pl-0 sm:pl-10 flex items-center justify-end">
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            {unreadItemsCount > 0
+                              ? `${unreadItemsCount} aviso(s) novo(s)`
+                              : 'Todos os avisos foram lidos'}
+                          </span>
+                          {unreadItemsCount > 0 && (
                             <button
                               type="button"
-                              onClick={item.buttonAction}
-                              className={`px-4 py-2 text-xs font-bold rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${item.buttonColor}`}
+                              onClick={() => markAllNotifsAsRead(allItemIds)}
+                              className="px-3 py-1.5 text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-teal-200 dark:border-teal-800 rounded-xl transition-all cursor-pointer"
                             >
-                              <span>{item.buttonText}</span>
+                              Marcar todos como lidos
                             </button>
-                          </div>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+
+                        <div className="space-y-3">
+                          {appNotifs.map((item) => {
+                            const IconComp = item.icon;
+                            const isRead = readNotifIds.includes(item.id);
+                            return (
+                              <div
+                                key={item.id}
+                                className={`bg-white dark:bg-slate-900 border p-5 rounded-2xl shadow-xs space-y-3 transition-all ${
+                                  isRead
+                                    ? 'border-slate-200/60 dark:border-slate-800/60 opacity-90'
+                                    : 'border-teal-200 dark:border-teal-900/60 ring-1 ring-teal-500/20'
+                                }`}
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+                                      <IconComp className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${item.categoryColor}`}>
+                                          {item.category}
+                                        </span>
+                                        {isRead ? (
+                                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                                            <Check className="w-3 h-3" /> Lida
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-bold text-rose-500 flex items-center gap-1 animate-pulse">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Nova
+                                          </span>
+                                        )}
+                                      </div>
+                                      <h4 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100 mt-1">
+                                        {item.title}
+                                      </h4>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium pl-0 sm:pl-10">
+                                  {item.description}
+                                </p>
+
+                                <div className="pt-1 pl-0 sm:pl-10 flex items-center justify-end gap-2">
+                                  {!isRead && (
+                                    <button
+                                      type="button"
+                                      onClick={() => markNotifAsRead(item.id)}
+                                      className="px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Marcar como lida
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      markNotifAsRead(item.id);
+                                      item.buttonAction();
+                                    }}
+                                    className={`px-4 py-2 text-xs font-bold rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${item.buttonColor}`}
+                                  >
+                                    <span>{item.buttonText}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
             </div>
           )}
 
@@ -4066,6 +4620,28 @@ export const PatientView: React.FC<PatientViewProps> = ({
             />
           )}
 
+          {activeTab === 'episodes' && (
+            <PainEpisodeTracker
+              data={data}
+              account={account}
+              onUpdateData={onUpdateData}
+              onClose={() => setActiveTab('home')}
+            />
+          )}
+
+          {activeTab === 'photos' && (
+            <ClinicalPhotoManager
+              data={data}
+              account={account}
+              onUpdateData={onUpdateData}
+              onClose={() => setActiveTab('home')}
+            />
+          )}
+
+          {activeTab === 'science' && (
+            <ScienceWorkbench />
+          )}
+
           {activeTab === 'news' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
@@ -4103,6 +4679,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
               </div>
             </div>
           )}
+          </div>
         </main>
       </div>
 
@@ -4119,8 +4696,8 @@ export const PatientView: React.FC<PatientViewProps> = ({
 
       {/* ── REFERENCES MODAL ── */}
       {showRefsModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in-up">
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col shadow-2xl animate-drawer-up">
             <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center flex-shrink-0">
               <h3 className="font-poppins font-black text-slate-800 dark:text-slate-100">
                 📚 Referências Científicas
@@ -4330,6 +4907,230 @@ export const PatientView: React.FC<PatientViewProps> = ({
           </div>
           {/* Arrow */}
           <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/95 dark:border-t-slate-950/95" />
+        </div>
+      )}
+
+      {/* ── MOBILE PERSISTENT BOTTOM NAVIGATION BAR (< lg) ── */}
+      <nav
+        aria-label="Navegação móvel principal"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 backdrop-blur-md px-3 py-1.5 flex items-center justify-around shadow-lg safe-area-pb"
+      >
+        {/* 1. REGISTRAR (Primeiro item de ação na barra de navegação) */}
+        <button
+          type="button"
+          onClick={() => setMobileRegisterDrawerOpen(true)}
+          className="patient-main-action-button flex flex-col items-center justify-center min-w-[56px] min-h-[44px] rounded-2xl text-teal-600 dark:text-teal-400 transition-all cursor-pointer group active:scale-95"
+          aria-label="Registrar sintomas agora"
+        >
+          <div className="w-9 h-9 rounded-2xl bg-teal-500 text-white flex items-center justify-center shadow-md shadow-teal-500/20 group-active:scale-90 transition-transform">
+            <Plus className="w-5 h-5 stroke-[2.5]" />
+          </div>
+          <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 mt-0.5">Registrar</span>
+        </button>
+
+        {/* 2. HOJE */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('home');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center justify-center min-w-[56px] min-h-[44px] rounded-2xl transition-all cursor-pointer ${
+            activeTab === 'home'
+              ? 'text-teal-600 dark:text-teal-400 font-bold'
+              : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Home className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] font-bold">Hoje</span>
+        </button>
+
+        {/* 3. EVOLUÇÃO */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('charts');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center justify-center min-w-[56px] min-h-[44px] rounded-2xl transition-all cursor-pointer ${
+            activeTab === 'charts'
+              ? 'text-teal-600 dark:text-teal-400 font-bold'
+              : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <TrendingUp className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] font-bold">Evolução</span>
+        </button>
+
+        {/* 4. MAIS */}
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] rounded-2xl text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all cursor-pointer relative"
+        >
+          <Menu className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] font-bold">Mais</span>
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-3 w-2 h-2 rounded-full bg-rose-500" />
+          )}
+        </button>
+      </nav>
+
+      {/* ── MOBILE QUICK REGISTER MODAL / DRAWER ── */}
+      {mobileRegisterDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-xs p-0 sm:p-4 animate-fade-in-up">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto animate-drawer-up">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
+                  <Plus className="w-5 h-5" />
+                </span>
+                <div>
+                  <h4 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100">
+                    O que deseja registrar agora?
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Escolha uma ação rápida para manter seu acompanhamento
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileRegisterDrawerOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer active:scale-90 transition-transform"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileRegisterDrawerOpen(false);
+                  setActiveTab('diary');
+                }}
+                className="p-3.5 rounded-2xl border border-teal-200 dark:border-teal-900/50 bg-teal-50/50 dark:bg-teal-950/20 text-left flex items-center gap-3 hover:border-teal-400 active:scale-[0.98] transition-all duration-150 cursor-pointer min-h-[52px]"
+              >
+                <span className="p-2 rounded-xl bg-teal-500 text-white shrink-0">
+                  <Calendar className="w-4 h-4" />
+                </span>
+                <div>
+                  <strong className="text-xs font-bold text-teal-900 dark:text-teal-200 block">
+                    Diário Rápido de Hoje
+                  </strong>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Dor, sono, fadiga e sintomas
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileRegisterDrawerOpen(false);
+                  setActiveTab('bodymap');
+                }}
+                className="p-3.5 rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 text-left flex items-center gap-3 hover:border-rose-400 active:scale-[0.98] transition-all duration-150 cursor-pointer min-h-[52px]"
+              >
+                <span className="p-2 rounded-xl bg-rose-500 text-white shrink-0">
+                  <Activity className="w-4 h-4" />
+                </span>
+                <div>
+                  <strong className="text-xs font-bold text-rose-900 dark:text-rose-200 block">
+                    Mapear Dor no Corpo
+                  </strong>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Silhueta anatômica e pontos
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileRegisterDrawerOpen(false);
+                  setActiveTab('episodes');
+                }}
+                className="p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 text-left flex items-center gap-3 hover:border-amber-400 active:scale-[0.98] transition-all duration-150 cursor-pointer min-h-[52px]"
+              >
+                <span className="p-2 rounded-xl bg-amber-500 text-white shrink-0">
+                  <Flame className="w-4 h-4" />
+                </span>
+                <div>
+                  <strong className="text-xs font-bold text-amber-900 dark:text-amber-200 block">
+                    Crise SOS / Episódio Agudo
+                  </strong>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Registro de pico e alívio
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileRegisterDrawerOpen(false);
+                  setActiveTab('photos');
+                }}
+                className="p-3.5 rounded-2xl border border-purple-200 dark:border-purple-900/50 bg-purple-50/50 dark:bg-purple-950/20 text-left flex items-center gap-3 hover:border-purple-400 active:scale-[0.98] transition-all duration-150 cursor-pointer min-h-[52px]"
+              >
+                <span className="p-2 rounded-xl bg-purple-500 text-white shrink-0">
+                  <Camera className="w-4 h-4" />
+                </span>
+                <div>
+                  <strong className="text-xs font-bold text-purple-900 dark:text-purple-200 block">
+                    Foto Clínica
+                  </strong>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Articulações e lesões
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileRegisterDrawerOpen(false);
+                  setActiveTab('medications');
+                }}
+                className="p-3.5 rounded-2xl border border-sky-200 dark:border-sky-900/50 bg-sky-50/50 dark:bg-sky-950/20 text-left flex items-center gap-3 hover:border-sky-400 active:scale-[0.98] transition-all duration-150 cursor-pointer min-h-[52px]"
+              >
+                <span className="p-2 rounded-xl bg-sky-500 text-white shrink-0">
+                  <Pill className="w-4 h-4" />
+                </span>
+                <div>
+                  <strong className="text-xs font-bold text-sky-900 dark:text-sky-200 block">
+                    Medicamentos & Adesão
+                  </strong>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Horários e doses tomadas
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileRegisterDrawerOpen(false);
+                  setActiveTab('hydration');
+                }}
+                className="p-3.5 rounded-2xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 text-left flex items-center gap-3 hover:border-blue-400 active:scale-[0.98] transition-all duration-150 cursor-pointer min-h-[52px]"
+              >
+                <span className="p-2 rounded-xl bg-blue-500 text-white shrink-0">
+                  <Droplet className="w-4 h-4" />
+                </span>
+                <div>
+                  <strong className="text-xs font-bold text-blue-900 dark:text-blue-200 block">
+                    Hidratação
+                  </strong>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Meta de ingestão de água
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -104,7 +104,7 @@ export function calculateAlgorithmicAnalysis(
   const badSleepLogs = recentLogs.filter(l => l.sleep != null && l.sleep <= 5);
   const goodSleepLogs = recentLogs.filter(l => l.sleep != null && l.sleep >= 6);
 
-  if (badSleepLogs.length > 0) {
+  if (badSleepLogs.length > 0 && validPainLogs.length >= 3) {
     const avgPainBadSleep = badSleepLogs.reduce((a, l) => a + (l.pain ?? 0), 0) / badSleepLogs.length;
     const avgPainGoodSleep = goodSleepLogs.length > 0 
       ? goodSleepLogs.reduce((a, l) => a + (l.pain ?? 0), 0) / goodSleepLogs.length 
@@ -114,16 +114,16 @@ export function calculateAlgorithmicAnalysis(
 
     if (diff >= 0.5 || badSleepLogs.length >= 2) {
       correlations.push({
-        trigger: 'Sono Insuficiente ou Não Reparador (<= 5/10)',
-        evidence: `Nos ${badSleepLogs.length} dias registrados com sono reduzido (<= 5/10), sua dor média foi de ${avgPainBadSleep.toFixed(1)}/10, contra ${avgPainGoodSleep.toFixed(1)}/10 nos dias de sono satisfatório (diferença de +${Math.abs(diff).toFixed(1)} pontos).`,
-        impact: diff >= 2.0 ? 'Forte Piora (Pico de Dor)' : 'Piora Moderada',
-        clinicalContext: 'A privação de sono NREM induz hiperalgesia central por facilitação da nocicepção descendente e elevação de marcadores inflamatórios sistêmicos.'
+        trigger: 'Co-ocorrência: Sono Reduzido (≤ 5/10) e Níveis de Dor',
+        evidence: `Em ${badSleepLogs.length} dia(s) com sono ≤ 5/10 nos últimos 14 dias, a dor média observada foi de ${avgPainBadSleep.toFixed(1)}/10, comparada a ${avgPainGoodSleep.toFixed(1)}/10 nos dias de sono satisfatório (diferença média de ${diff >= 0 ? '+' : ''}${diff.toFixed(1)} pontos). Amostra: N=${recentLogs.length} dias avaliados.`,
+        impact: diff >= 2.0 ? 'Forte Associação com Dor Elevada' : 'Associação Moderada',
+        clinicalContext: 'A literatura médica (EULAR/ACR) descreve relação bidirecional entre privação de fases profundas do sono e sensibilização central da dor. Trata-se de associação temporal individual, sujeita a fatores externos.'
       });
 
       recommendations.push({
-        title: 'Higiene do Sono e Janela de Descanso Fixa',
-        action: 'Estabeleça horários rigorosos de deitar e desligar telas 60 minutos antes de dormir. Mantenha o quarto escuro e em temperatura amena.',
-        expectedBenefit: 'Redução potencial de 1,5 a 2,5 pontos na dor basal após regularização das fases profundas do sono.'
+        title: 'Rotina de Regularidade de Descanso (Higiene do Sono)',
+        action: 'Manter horários previsíveis de deitar e despertar, reduzindo luzes fortes e telas digitais 60 minutos antes de dormir.',
+        expectedBenefit: 'Favorecer a recuperação neuro-muscular e reduzir a hiperexcitabilidade das vias nociceptivas, como coadjuvante no manejo da dor.'
       });
     }
   }
@@ -140,7 +140,7 @@ export function calculateAlgorithmicAnalysis(
 
   const lowStressLogs = recentLogs.filter(l => !highStressLogs.includes(l));
 
-  if (highStressLogs.length > 0) {
+  if (highStressLogs.length > 0 && validPainLogs.length >= 3) {
     const avgPainHighStress = highStressLogs.reduce((a, l) => a + (l.pain ?? 0), 0) / highStressLogs.length;
     const avgPainLowStress = lowStressLogs.length > 0 
       ? lowStressLogs.reduce((a, l) => a + (l.pain ?? 0), 0) / lowStressLogs.length 
@@ -149,16 +149,16 @@ export function calculateAlgorithmicAnalysis(
     const stressDiff = avgPainHighStress - avgPainLowStress;
 
     correlations.push({
-      trigger: 'Sobrecarga de Estresse Emocional / Ocupacional',
-      evidence: `Identificado impacto direto do estresse em ${highStressLogs.length} dias registrados. A intensidade de dor subiu para ${avgPainHighStress.toFixed(1)}/10 nesses períodos (vs ${avgPainLowStress.toFixed(1)}/10 nos dias tranquilos).`,
-      impact: stressDiff >= 2.0 ? 'Forte Piora (Pico de Dor)' : 'Piora Moderada',
-      clinicalContext: 'A hiperativação do eixo HPA libera catecolaminas e cortisol em excesso, provocando hipertonia muscular reativa e amplificação do sinal doloroso no SNC.'
+      trigger: 'Associação Temporal: Sobrecarga de Estresse e Exacerbação',
+      evidence: `Registrada concomitância de estresse elevado em ${highStressLogs.length} dia(s) (N total=${recentLogs.length}). A dor média nesses dias foi de ${avgPainHighStress.toFixed(1)}/10 vs ${avgPainLowStress.toFixed(1)}/10 nos dias de menor tensão (diferença de ${stressDiff >= 0 ? '+' : ''}${stressDiff.toFixed(1)} pontos).`,
+      impact: stressDiff >= 2.0 ? 'Forte Associação com Dor Elevada' : 'Associação Moderada',
+      clinicalContext: 'O estresse psicossocial ativa o eixo neuroendócrino e pode amplificar a percepção nociceptiva. Dados indicam correlação temporal nos registros, não necessariamente causalidade única.'
     });
 
     recommendations.push({
-      title: 'Técnicas de Modulação do Sistema Nervoso Autônomo',
-      action: 'Pratique exercícios de respiração diafragmática (protocolo 4-7-8) durante 5 a 10 minutos nos momentos de maior tensão ao longo do dia.',
-      expectedBenefit: 'Ativação do tónus vagal, atenuando a rigidez muscular e prevenindo espasmos dolorosos.'
+      title: 'Pausas de Regulação Autonômica',
+      action: 'Adotar micropausas com respiração diafragmática (ex: 3 a 5 minutos) durante períodos de maior demanda cognitiva ou laboral.',
+      expectedBenefit: 'Apoio na modulação do tônus simpático e redução da tensão muscular reativa associada a períodos de sobrecarga.'
     });
   }
 
@@ -166,27 +166,27 @@ export function calculateAlgorithmicAnalysis(
   const lowWaterLogs = recentLogs.filter(l => l.waterIntake != null && l.waterIntake > 0 && l.waterIntake < 1500);
   const goodWaterLogs = recentLogs.filter(l => l.waterIntake != null && l.waterIntake >= 2000);
 
-  if (goodWaterLogs.length > 0) {
+  if (goodWaterLogs.length >= 2) {
     const avgFatigueGoodWater = goodWaterLogs.reduce((a, l) => a + (l.fatigue ?? 0), 0) / goodWaterLogs.length;
     
     correlations.push({
-      trigger: 'Hidratação Otimizada (>= 2.000ml / dia)',
-      evidence: `Nos ${goodWaterLogs.length} dias com meta de hidratação atingida (>= 2.0L), o escore de fadiga corporal caiu para ${avgFatigueGoodWater.toFixed(1)}/10 e houve relato de menor atrito articular.`,
-      impact: 'Proteção / Fator Positivo',
-      clinicalContext: 'O volume hídrico adequado otimiza a viscosidade do líquido sinovial e melhora a percussão microvascular, favorecendo o aporte de nutrientes aos tecidos musculares.'
+      trigger: 'Padrão Observado: Ingestão Hídrica Adequada (≥ 2.000ml/dia)',
+      evidence: `Em ${goodWaterLogs.length} dia(s) com consumo hídrico ≥ 2.000ml, a fadiga média relatada foi de ${avgFatigueGoodWater.toFixed(1)}/10 (N=${recentLogs.length}).`,
+      impact: 'Associação com Estabilidade / Bem-Estar',
+      clinicalContext: 'Hidratação adequada apoia o balanço hidroeletrolítico e volume plasmático, podendo atenuar a sensação subjetiva de fadiga. Associação observada nos autorrelatos.'
     });
 
     recommendations.push({
-      title: 'Manutenção da Meta Hídrica Diária',
-      action: 'Mantenha garrafas de água visíveis no ambiente de trabalho ou configure lembretes regulares a cada 2 horas.',
-      expectedBenefit: 'Manutenção da fluidez articular e prevenção do cansaço muscular acumulado no final da tarde.'
+      title: 'Manutenção de Hábitos Hídricos Regulares',
+      action: 'Distribuir o consumo de líquidos ao longo do dia, adaptando conforme orientação médica para eventuais restrições renais ou cardiovasculares.',
+      expectedBenefit: 'Prevenção de queixas de astenia e suporte ao equilíbrio fisiológico diário.'
     });
   } else if (lowWaterLogs.length >= 2) {
     correlations.push({
-      trigger: 'Ingestão Hídrica Abaixo do Recomendado (< 1.500ml/dia)',
-      evidence: `Registrada baixa ingestão hídrica em ${lowWaterLogs.length} dias nos últimos 14 dias, associada a maior queixa de rigidez ao movimentar-se.`,
-      impact: 'Piora Moderada',
-      clinicalContext: 'A desidratação reduz o volume plasmático e a lubrificação da cartilagem articular, aumentando o atrito nociceptivo sob carga.'
+      trigger: 'Padrão Observado: Baixa Ingestão Hídrica Relatada (< 1.500ml/dia)',
+      evidence: `Registrado consumo de água inferior a 1.500ml em ${lowWaterLogs.length} dia(s) nos últimos 14 dias, coincidindo com maiores queixas de cansaço muscular.`,
+      impact: 'Associação Moderada',
+      clinicalContext: 'A hidratação insuficiente pode co-ocorrer com fadiga geral. Recomenda-se acompanhamento e individualização clínica.'
     });
   }
 
@@ -199,24 +199,24 @@ export function calculateAlgorithmicAnalysis(
     return h >= 75 || t < 18 || p < 1008;
   });
 
-  if (wetLogs.length > 0) {
+  if (wetLogs.length >= 2) {
     const avgStiffnessWet = wetLogs.reduce((a, l) => a + (l.stiffness ?? 0), 0) / wetLogs.length;
     
     correlations.push({
-      trigger: 'Sensibilidade a Alta Umidade / Baixa Pressão Atmosférica',
-      evidence: `Nos ${wetLogs.length} dias com condições de umidade elevada, baixa temperatura ou menor pressão barométrica, o nível de rigidez corporal/articular foi de ${avgStiffnessWet.toFixed(1)}/10.`,
-      impact: 'Piora Moderada',
-      clinicalContext: 'A variação barométrica provoca alteração da pressão intra-articular em cápsulas já sensibilizadas, expandindo microestruturas e exacerbando a dor.'
+      trigger: 'Sensibilidade Meteorológica Observada (Clima Úmido / Frio / Baixa Pressão)',
+      evidence: `Em ${wetLogs.length} dia(s) com condições de maior umidade, temperatura mais baixa ou menor pressão barométrica, a rigidez média relatada foi de ${avgStiffnessWet.toFixed(1)}/10 (N=${recentLogs.length}).`,
+      impact: 'Associação Moderada',
+      clinicalContext: 'Variações barométricas e de temperatura são frequentemente descritas por pessoas com doenças reumatológicas como fatores de co-ocorrência com rigidez articular.'
     });
 
     recommendations.push({
-      title: 'Termoterapia e Alongamentos Suaves ao Acordar',
-      action: 'Em dias frios ou úmidos, utilize bolsas de água morna ou tome um banho aquecido logo pela manhã antes de iniciar movimentações intensas.',
-      expectedBenefit: 'Aumento da complacência do tecido conjuntivo e redução imediata da rigidez matinal.'
+      title: 'Conforto Térmico e Movimentação Suave',
+      action: 'Em dias frios ou úmidos, utilizar agasalhos confortáveis e realizar mobilizações articulares leves antes de iniciar atividades intensas.',
+      expectedBenefit: 'Facilitação da mobilidade tecidual e alívio do desconforto matinal.'
     });
   }
 
-  // ── CRUZAMENTO 5: Análise Frequencial de Gatilhos Alimentares e de Hábitos ──
+  // ── CRUZAMENTO 5: Análise Frequencial de Gatilhos Declarados ──
   const triggerCounts: Record<string, { count: number; totalPain: number }> = {};
   recentLogs.forEach(l => {
     const p = l.pain ?? avgPain;
@@ -238,16 +238,16 @@ export function calculateAlgorithmicAnalysis(
 
     if (triggerAvgPain >= 4.0) {
       correlations.push({
-        trigger: `Gatilho Recorrente: "${topTriggerName}"`,
-        evidence: `Presente em ${topTriggerData.count} registros do período, com nota média de dor de ${triggerAvgPain.toFixed(1)}/10 nos dias em que ocorreu.`,
-        impact: triggerAvgPain >= 7.0 ? 'Forte Piora (Pico de Dor)' : 'Piora Moderada',
-        clinicalContext: 'Recorrência consistente de gatilho mecânico, metabólico ou comportamental associado ao agravamento dos sintomas nociceptivos.'
+        trigger: `Fator Concomitante Frequente: "${topTriggerName}"`,
+        evidence: `Declarado em ${topTriggerData.count} dia(s) do período (N=${recentLogs.length}). Nesses dias, a dor média foi de ${triggerAvgPain.toFixed(1)}/10.`,
+        impact: triggerAvgPain >= 7.0 ? 'Forte Associação com Dor Elevada' : 'Associação Moderada',
+        clinicalContext: 'Co-ocorrência consistente relatada pelo próprio paciente. Deve ser avaliada pelo médico assistente quanto ao papel como fator desencadeante ou confundidor.'
       });
 
       recommendations.push({
-        title: `Mapeamento e Modulação de "${topTriggerName}"`,
-        action: `Observe os momentos em que "${topTriggerName}" se repete e tente fracionar ou evitar a exposição a este fator, substituindo-o por alternativas equilibradas.`,
-        expectedBenefit: 'Sua eliminação ou modulação gradual pode diminuir a frequência de oscilações agudas de dor.'
+        title: `Observação e Acompanhamento de "${topTriggerName}"`,
+        action: `Registrar com detalhes o contexto em que "${topTriggerName}" ocorre para discutir estratégias com sua equipe de saúde.`,
+        expectedBenefit: 'Melhor compreensão individual dos padrões para planejamento de medidas preventivas.'
       });
     }
   }
@@ -256,22 +256,22 @@ export function calculateAlgorithmicAnalysis(
   if (correlations.length === 0) {
     correlations.push({
       trigger: 'Estabilidade Sintomática nos Registros Recentes',
-      evidence: `Com base em ${recentLogs.length} diários analisados, a dor permaneceu controlada (média de ${avgPain.toFixed(1)}/10) sem flutuações extremas.`,
-      impact: 'Proteção / Fator Positivo',
-      clinicalContext: 'Manutenção de padrões regulares de descanso, medicação e hábitos protetores favorece o equilíbrio das vias anti-nociceptivas.'
+      evidence: `Com base em ${recentLogs.length} diários analisados nos últimos 14 dias, a dor permaneceu em média de ${avgPain.toFixed(1)}/10 sem oscilações extremas.`,
+      impact: 'Associação com Estabilidade / Bem-Estar',
+      clinicalContext: 'Manutenção de padrões regulares de descanso, medicação e hábitos diários está estatisticamente associada a menor variabilidade sintomática no período.'
     });
 
     recommendations.push({
-      title: 'Manutenção da Rotina Atual',
-      action: 'Continue registrando seus diários diariamente para manter o acompanhamento temporal preciso do seu padrão de saúde.',
-      expectedBenefit: 'Consolidação da estabilidade dos sintomas e prevenção de novos flares.'
+      title: 'Continuidade dos Registros Diários',
+      action: 'Manter o preenchimento regular do diário para fortalecer a base observacional e enriquecer as consultas com sua equipe médica.',
+      expectedBenefit: 'Consolidação de dados longitudinais de alta qualidade para apoio a decisões clínicas compartilhadas.'
     });
   }
 
   const confidenceLevel = recentLogs.length >= 10 ? 'Alta' : recentLogs.length >= 5 ? 'Moderada' : 'Inicial';
 
   return {
-    summary: `Análise consolidada com base em ${recentLogs.length} registros clínicos dos últimos 14 dias. Foram cruzados dados de dor (média de ${avgPain.toFixed(1)}/10), qualidade de sono (média de ${avgSleep.toFixed(1)}/10), estresse, hidratação (média de ${Math.round(avgWater)}ml/dia), variáveis climáticas e gatilhos declarados.`,
+    summary: `Análise observacional baseada em ${recentLogs.length} registros clínicos dos últimos 14 dias (N=${recentLogs.length}). Foram cruzados dados de dor (média ${avgPain.toFixed(1)}/10), sono (média ${avgSleep.toFixed(1)}/10), estresse, hidratação (média ${Math.round(avgWater)}ml/dia), variáveis climáticas e fatores declarados. Nota: correlações estatísticas refletem associações temporais e não constituem comprovação de causalidade biológica isolada.`,
     confidenceLevel,
     correlations,
     recommendations,

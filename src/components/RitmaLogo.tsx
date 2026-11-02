@@ -159,12 +159,10 @@ export const RitmaLogo: React.FC<RitmaLogoProps> = ({
             <span className="font-semibold text-[#062B63] dark:text-white">A</span>
           </div>
 
-          {/* Subtitle with side lines: — diário de dor — */}
+          {/* Subtitle: diário de dor */}
           {showSubtitle && (
-            <div className={`flex items-center justify-center gap-2 w-full mt-1.5 text-[#062B63] dark:text-slate-300 font-medium ${subtitleSizes[size]}`}>
-              <span className="h-[1px] w-6 bg-[#8795AA]/50 dark:bg-slate-700 inline-block" />
-              <span className="lowercase font-normal">diário de dor</span>
-              <span className="h-[1px] w-6 bg-[#8795AA]/50 dark:bg-slate-700 inline-block" />
+            <div className={`flex items-center justify-center w-full mt-0.5 text-[#062B63] dark:text-slate-300 font-medium whitespace-nowrap ${subtitleSizes[size]}`}>
+              <span className="lowercase font-normal whitespace-nowrap">diário de dor</span>
             </div>
           )}
 

@@ -52,7 +52,7 @@ export function saveWearableConfig(cfg: Partial<WearableConfig>): WearableConfig
 export interface SyncOperationResult {
   success: boolean;
   provider: WearableProvider;
-  data: WearableSyncData;
+  data?: WearableSyncData;
   date: string;
   message: string;
 }
@@ -65,12 +65,13 @@ export async function executeWearableSync(
   provider: WearableProvider,
   dateISO: string,
   googleFitToken?: string | null,
-  healthKitPayload?: HealthKitPayload | null
+  healthKitPayload?: HealthKitPayload | null,
+  allowDemo: boolean = false
 ): Promise<SyncOperationResult> {
   const targetDate = dateISO || todayISO();
 
   if (provider === 'google_fit') {
-    const res = await fetchGoogleFitMetrics(googleFitToken, targetDate);
+    const res = await fetchGoogleFitMetrics(googleFitToken, targetDate, allowDemo);
     return {
       success: res.success,
       provider: 'google_fit',
@@ -81,7 +82,7 @@ export async function executeWearableSync(
   }
 
   if (provider === 'apple_health') {
-    const res = await fetchHealthKitMetrics(healthKitPayload, targetDate);
+    const res = await fetchHealthKitMetrics(healthKitPayload, targetDate, allowDemo);
     return {
       success: res.success,
       provider: 'apple_health',
@@ -97,12 +98,17 @@ export async function executeWearableSync(
 /**
  * Injects wearable metrics (steps, sleep duration, HRV, and resting HR) into a patient's DailyLog
  * in the Central State.
+ *
+ * RIGOR CIENTÍFICO:
+ * - Não inventa notas de sono caso não tenham sido medidas.
  */
 export function injectWearableDataIntoLog(
   dailyLogs: DailyLog[],
   dateISO: string,
-  metrics: WearableSyncData
+  metrics?: WearableSyncData
 ): DailyLog[] {
+  if (!metrics) return dailyLogs;
+
   const existingIndex = dailyLogs.findIndex((l) => l.date === dateISO);
 
   if (existingIndex >= 0) {
@@ -114,17 +120,17 @@ export function injectWearableDataIntoLog(
         ...metrics,
         syncedAt: new Date().toISOString()
       },
-      // If sleep quality was blank, auto-populate score (scaled 0-10)
+      // Only set sleep from metrics if sleep is currently empty and metrics provides valid sleepQuality
       sleep: current.sleep !== null && current.sleep !== undefined
         ? current.sleep
-        : (metrics.sleepQuality ? Math.round(metrics.sleepQuality / 10) : 7)
+        : (metrics.sleepQuality ? Math.round(metrics.sleepQuality / 10) : current.sleep ?? null)
     };
   } else {
     dailyLogs.push({
       date: dateISO,
       pain: null,
       fatigue: null,
-      sleep: metrics.sleepQuality ? Math.round(metrics.sleepQuality / 10) : 7,
+      sleep: metrics.sleepQuality ? Math.round(metrics.sleepQuality / 10) : null,
       function: null,
       wearableSync: {
         ...metrics,
@@ -158,7 +164,7 @@ export async function backfillWearableData(
 
     try {
       const res = await executeWearableSync(provider, dateStr, googleFitToken);
-      if (res.success) {
+      if (res.success && res.data) {
         updates.push({ date: dateStr, data: res.data });
         syncedDaysCount++;
       }

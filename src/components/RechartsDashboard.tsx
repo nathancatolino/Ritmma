@@ -645,6 +645,9 @@ export const RechartsDashboard: React.FC<RechartsDashboardProps> = ({ logs }) =>
                     fill="url(#ritmmaAreaFill)"
                     dot={<RITMMAPeakDot data={ritmmaWaveData} dataKey="pain" />}
                     activeDot={{ r: 8, fill: '#9251E5', stroke: '#FFFFFF', strokeWidth: 2 }}
+                    isAnimationActive={true}
+                    animationDuration={500}
+                    animationEasing="ease-out"
                   />
                   {waveLayers.fatigue && (
                     <Line
@@ -655,6 +658,9 @@ export const RechartsDashboard: React.FC<RechartsDashboardProps> = ({ logs }) =>
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       dot={{ r: 3 }}
+                      isAnimationActive={true}
+                      animationDuration={500}
+                      animationEasing="ease-out"
                     />
                   )}
                   {waveLayers.sleep && (
@@ -666,6 +672,9 @@ export const RechartsDashboard: React.FC<RechartsDashboardProps> = ({ logs }) =>
                       strokeWidth={2}
                       strokeDasharray="2 2"
                       dot={{ r: 3 }}
+                      isAnimationActive={true}
+                      animationDuration={500}
+                      animationEasing="ease-out"
                     />
                   )}
                   {waveLayers.weather && (
@@ -677,6 +686,9 @@ export const RechartsDashboard: React.FC<RechartsDashboardProps> = ({ logs }) =>
                       stroke="#062B63"
                       strokeWidth={2}
                       dot={{ r: 3 }}
+                      isAnimationActive={true}
+                      animationDuration={500}
+                      animationEasing="ease-out"
                     />
                   )}
                   {waveLayers.triggers && (
@@ -687,6 +699,9 @@ export const RechartsDashboard: React.FC<RechartsDashboardProps> = ({ logs }) =>
                       opacity={0.35}
                       barSize={12}
                       radius={[4, 4, 0, 0]}
+                      isAnimationActive={true}
+                      animationDuration={500}
+                      animationEasing="ease-out"
                     />
                   )}
                 </ComposedChart>

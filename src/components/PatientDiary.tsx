@@ -7,9 +7,138 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DailyLog, PatientData, ExerciseLog, CycleLog, WeatherLog, MedicationConfig, ScheduledEventConfig, WearableSyncData } from '../types';
 import { DX, DIARY } from '../data';
 import { fmtDate, todayISO, calculateCyclePrediction } from '../utils';
-import { Heart, Activity, Brain, Check, CloudSun, CalendarDays, Dumbbell, ShieldAlert, Droplet, Trees, Palette, Users, Clock, Pill, Calendar, Plus, Trash2, Info, HelpCircle, ArrowLeft, Bell, BellRing, Smartphone, RefreshCw, Sparkles, ShieldCheck, Briefcase, Frown, Meh, Smile, Laugh, Lightbulb, MessageCircle, Play, Mic, MicOff, Volume2, VolumeX, Loader2, Send, Zap, Moon, Layers } from 'lucide-react';
+import { Heart, Activity, Brain, Check, CloudSun, CalendarDays, Dumbbell, ShieldAlert, Droplet, Trees, Palette, Users, Clock, Pill, Calendar, Plus, Trash2, Info, HelpCircle, ArrowLeft, Bell, BellRing, Smartphone, RefreshCw, Sparkles, ShieldCheck, Briefcase, Frown, Meh, Smile, Laugh, Lightbulb, MessageCircle, Play, Mic, MicOff, Volume2, VolumeX, Loader2, Send, Zap, Moon, Layers, Cloud, CloudOff, AlertCircle } from 'lucide-react';
 import { MedicationEditor } from './MedicationEditor';
 import { ScheduledEventsEditor } from './ScheduledEventsEditor';
+
+export type DiarySaveVisualState = 'saving' | 'saved_local' | 'synced_cloud' | 'error';
+
+interface SaveStatusBadgeProps {
+  status: DiarySaveVisualState;
+  lastSavedTime?: string | null;
+  onRetry?: () => void;
+  variant?: 'top' | 'footer';
+}
+
+export const SaveStatusBadge: React.FC<SaveStatusBadgeProps> = ({
+  status,
+  lastSavedTime,
+  onRetry,
+  variant = 'top'
+}) => {
+  if (variant === 'top') {
+    switch (status) {
+      case 'saving':
+        return (
+          <div
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/40 shadow-2xs animate-pulse select-none"
+          >
+            <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+            <span>Salvando...</span>
+          </div>
+        );
+      case 'saved_local':
+        return (
+          <div
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs select-none"
+          >
+            <Check className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+            <span>Salvo localmente{lastSavedTime ? ` (${lastSavedTime})` : ''}</span>
+          </div>
+        );
+      case 'synced_cloud':
+        return (
+          <div
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-2xs select-none"
+          >
+            <Cloud className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+            <span>Sincronizado com a nuvem</span>
+          </div>
+        );
+      case 'error':
+        return (
+          <div
+            role="alert"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 shadow-2xs select-none"
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            <span>Erro na sincronização</span>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="ml-1 text-[10px] font-bold underline hover:text-rose-900 dark:hover:text-rose-100 cursor-pointer"
+              >
+                Tentar
+              </button>
+            )}
+          </div>
+        );
+    }
+  }
+
+  // Footer variant
+  switch (status) {
+    case 'saving':
+      return (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center justify-center gap-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30 p-2 rounded-xl select-none"
+        >
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+          <span>Salvando...</span>
+        </div>
+      );
+    case 'saved_local':
+      return (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center justify-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 p-2 rounded-xl select-none"
+        >
+          <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+          <span>Salvo localmente{lastSavedTime ? ` às ${lastSavedTime}` : ''}</span>
+        </div>
+      );
+    case 'synced_cloud':
+      return (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center justify-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30 p-2 rounded-xl select-none"
+        >
+          <Cloud className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span>Sincronizado com a nuvem</span>
+        </div>
+      );
+    case 'error':
+      return (
+        <div
+          role="alert"
+          className="flex items-center justify-center gap-2 text-xs text-rose-700 dark:text-rose-300 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 p-2 rounded-xl select-none"
+        >
+          <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+          <span>Erro na sincronização com a nuvem (dados salvos com segurança neste dispositivo)</span>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="font-bold underline text-rose-800 dark:text-rose-200 hover:text-rose-950 ml-1 cursor-pointer"
+            >
+              Tentar novamente
+            </button>
+          )}
+        </div>
+      );
+  }
+};
 
 interface PatientDiaryProps {
   patientData: PatientData;
@@ -17,9 +146,17 @@ interface PatientDiaryProps {
   onSaveLog: (log: DailyLog) => void;
   onUpdatePatientProfile?: (weight: number, medications: MedicationConfig[], scheduledEvents: ScheduledEventConfig[]) => void;
   onBack?: () => void;
+  cloudSyncStatus?: 'synced' | 'syncing' | 'offline' | 'error';
 }
 
-export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patientId, onSaveLog, onUpdatePatientProfile, onBack }) => {
+export const PatientDiary: React.FC<PatientDiaryProps> = ({
+  patientData,
+  patientId,
+  onSaveLog,
+  onUpdatePatientProfile,
+  onBack,
+  cloudSyncStatus = 'synced',
+}) => {
   const todayStr = todayISO();
   const existingLog = patientData.dailyLogs.find((l) => l.date === todayStr);
 
@@ -29,6 +166,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
   const saveTimeKey = `chronos_saved_timestamp_${pId}_${todayStr}`;
   
   let draftLog: DailyLog | null = null;
+  let draftSavedTimestamp: number | null = null;
   try {
     const draftStr = localStorage.getItem(draftKey);
     if (draftStr) {
@@ -36,6 +174,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
       const lastSaveTime = Number(localStorage.getItem(saveTimeKey) || 0);
       if (draftObj && typeof draftObj.timestamp === 'number' && draftObj.timestamp > lastSaveTime) {
         draftLog = draftObj.log;
+        draftSavedTimestamp = draftObj.timestamp;
       }
     }
   } catch (e) {
@@ -43,6 +182,17 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
   }
 
   const source = draftLog || existingLog;
+
+  const [isDraftRestored, setIsDraftRestored] = useState<boolean>(Boolean(draftLog));
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved'>(draftLog ? 'saved' : 'idle');
+  const [lastDraftTime, setLastDraftTime] = useState<string | null>(
+    draftSavedTimestamp
+      ? new Date(draftSavedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : null
+  );
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitSuccessMsg, setSubmitSuccessMsg] = useState<string | null>(null);
+  const isInitialMountRef = useRef<boolean>(true);
 
   const [isDetailed, setIsDetailed] = useState(false);
   const [showAllFields, setShowAllFields] = useState(false);
@@ -132,34 +282,17 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                 setWeatherSyncing(false);
               })
               .catch(() => {
-                setWeather({ temp: 22, humidity: 68, pressure: 1014 });
                 setWeatherSyncing(false);
               });
           },
           () => {
-            setWeather({ temp: 22, humidity: 68, pressure: 1014 });
             setWeatherSyncing(false);
           },
           { timeout: 3500 }
         );
       } else {
-        setWeather({ temp: 22, humidity: 68, pressure: 1014 });
         setWeatherSyncing(false);
       }
-    }
-
-    // 2. Smartwatch / Wearable Auto-Sync
-    if (!wearableSync) {
-      const mockWatchData: WearableSyncData = {
-        steps: 7840 + Math.floor(Math.random() * 800),
-        sleepHours: 7.4,
-        sleepQuality: 82,
-        hrv: 56,
-        restingHeartRate: 62,
-        device: 'Smartwatch Auto-Sync (Apple Watch / Galaxy Watch)',
-        syncedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      };
-      setWearableSync(mockWatchData);
     }
   }, []);
 
@@ -1254,12 +1387,14 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
   // Ref to skip auto-save on the very first mount of the component session
   const isFirstMountRef = useRef(true);
 
-  // Auto-save logic with 1.5s debounce
+  // Auto-save logic with debounce and discrete saving feedback
   useEffect(() => {
     if (isFirstMountRef.current) {
       isFirstMountRef.current = false;
       return;
     }
+
+    setDraftStatus('saving');
 
     const timer = setTimeout(() => {
       const log: DailyLog = {
@@ -1354,10 +1489,12 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
           log
         };
         localStorage.setItem(draftKey, JSON.stringify(draftObj));
+        setDraftStatus('saved');
+        setLastDraftTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       } catch (e) {
         console.error('Error auto-saving draft:', e);
       }
-    }, 1500);
+    }, 1200);
 
     return () => clearTimeout(timer);
   }, [
@@ -1378,44 +1515,115 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
     try {
       localStorage.setItem(saveTimeKey, Date.now().toString());
       localStorage.removeItem(draftKey);
+      setDraftStatus('idle');
+      setIsDraftRestored(false);
     } catch (e) {
       console.error('Error clearing draft:', e);
     }
   };
 
-  const handleApplyDiaryPreset = (type: 'severe' | 'moderate' | 'fatigue_fog' | 'mild_stable') => {
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem(draftKey);
+      localStorage.setItem(saveTimeKey, Date.now().toString());
+    } catch (e) {}
+    setIsDraftRestored(false);
+    setDraftStatus('idle');
+    setLastDraftTime(null);
+    // Reset to existingLog or empty
+    setPain(existingLog?.pain ?? null);
+    setFatigue(existingLog?.fatigue ?? null);
+    setSleep(existingLog?.sleep ?? null);
+    setFunction(existingLog?.function ?? null);
+    setMood(existingLog?.mood ?? null);
+    setWorstPain(existingLog?.worstPain ?? null);
+    setStiffness(existingLog?.stiffness ?? null);
+    setNotes(existingLog?.notes ?? '');
+    setSelectedTriggers(existingLog?.triggers ?? []);
+  };
+
+  // State for conscious preset confirmation (ETAPA 3.2: never inject unconfirmed clinical data)
+  const [presetDraft, setPresetDraft] = useState<{
+    key: string;
+    label: string;
+    description: string;
+    icon: string;
+    pain: number;
+    fatigue: number;
+    sleep: number;
+    function: number;
+    notesPrefix: string;
+  } | null>(null);
+
+  const handleOpenPresetModal = (type: 'severe' | 'moderate' | 'fatigue_fog' | 'mild_stable') => {
     if (type === 'severe') {
-      setPain(8);
-      setWorstPain(9);
-      setFatigue(8);
-      setFunction(3);
-      setMood(2);
-      setNotes(prev => (prev ? prev + '\n' : '') + '[Registro Rápido]: Crise Aguda / Flare Intenso.');
+      setPresetDraft({
+        key: 'severe',
+        label: 'Crise Aguda / Flare Intenso',
+        description: 'Ponto de partida para dias de dor intensa e sobrecarga aguda. Você pode confirmar ou ajustar cada valor antes de aplicar.',
+        icon: '🚨',
+        pain: pain ?? 8,
+        fatigue: fatigue ?? 8,
+        sleep: sleep ?? 3,
+        function: fun ?? 3,
+        notesPrefix: '[Registro Rápido]: Crise Aguda / Flare Intenso.'
+      });
     } else if (type === 'moderate') {
-      setPain(5);
-      setWorstPain(6);
-      setFatigue(5);
-      setFunction(5);
-      setMood(3);
-      setNotes(prev => (prev ? prev + '\n' : '') + '[Registro Rápido]: Dor moderada e sobrecarga.');
+      setPresetDraft({
+        key: 'moderate',
+        label: 'Dor Moderada e Sobrecarga',
+        description: 'Ponto de partida para dias com incômodo moderado nas atividades habituais.',
+        icon: '⚡',
+        pain: pain ?? 5,
+        fatigue: fatigue ?? 5,
+        sleep: sleep ?? 5,
+        function: fun ?? 5,
+        notesPrefix: '[Registro Rápido]: Dor moderada e sobrecarga.'
+      });
     } else if (type === 'fatigue_fog') {
-      setFatigue(9);
-      setBrainFog(8);
-      setPain(prev => prev ?? 4);
-      setWorstPain(prev => prev ?? 5);
-      setFunction(3);
-      setNotes(prev => (prev ? prev + '\n' : '') + '[Registro Rápido]: Exaustão severa e névoa mental.');
+      setPresetDraft({
+        key: 'fatigue_fog',
+        label: 'Exaustão e Névoa Mental',
+        description: 'Ponto de partida para dias onde a falta de energia e dificuldade de foco são os sintomas principais.',
+        icon: '🧠',
+        pain: pain ?? 4,
+        fatigue: fatigue ?? 9,
+        sleep: sleep ?? 4,
+        function: fun ?? 3,
+        notesPrefix: '[Registro Rápido]: Exaustão severa e névoa mental.'
+      });
     } else if (type === 'mild_stable') {
-      setPain(2);
-      setWorstPain(3);
-      setFatigue(3);
-      setFunction(7);
-      setMood(4);
-      setNotes(prev => (prev ? prev + '\n' : '') + '[Registro Rápido]: Dia estável com dor controlada.');
+      setPresetDraft({
+        key: 'mild_stable',
+        label: 'Dia Estável e Controlado',
+        description: 'Ponto de partida para dias mais calmos, com sintomas leves e boa autonomia.',
+        icon: '🌱',
+        pain: pain ?? 2,
+        fatigue: fatigue ?? 3,
+        sleep: sleep ?? 7,
+        function: fun ?? 7,
+        notesPrefix: '[Registro Rápido]: Dia estável com dor controlada.'
+      });
     }
   };
 
+  const handleConfirmPresetDraft = () => {
+    if (!presetDraft) return;
+    setPain(presetDraft.pain);
+    setFatigue(presetDraft.fatigue);
+    setSleep(presetDraft.sleep);
+    setFunction(presetDraft.function);
+    setNotes(prev => (prev ? prev + '\n' : '') + presetDraft.notesPrefix);
+    setPresetDraft(null);
+  };
+
   const handleSaveQuick = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    setSubmitSuccessMsg(isOnline ? 'Gravando no aparelho e sincronizando com Firestore...' : 'Gravando no dispositivo...');
+
     const log: DailyLog = {
       ...existingLog,
       date: todayStr,
@@ -1423,13 +1631,30 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
       fatigue,
       sleep,
       function: fun,
+      worstPain: worstPain !== null ? worstPain : undefined,
+      stiffness: stiffness !== null ? stiffness : undefined,
       mood: mood !== null ? mood : undefined,
+      notes: notes.trim() || undefined,
     };
+
     clearDraft();
-    onSaveLog(log);
+
+    setTimeout(() => {
+      setSubmitSuccessMsg(isOnline ? '✓ Salvo e sincronizado com Firestore!' : '✓ Salvo no aparelho (modo offline)');
+      setTimeout(() => {
+        setIsSubmitting(false);
+        onSaveLog(log);
+      }, 550);
+    }, 450);
   };
 
   const handleSave = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    setSubmitSuccessMsg(isOnline ? 'Gravando no aparelho e sincronizando com Firestore...' : 'Gravando no dispositivo...');
+
     const log: DailyLog = {
       ...existingLog,
       date: todayStr,
@@ -1510,11 +1735,90 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
     }
 
     clearDraft();
-    onSaveLog(log);
+
+    setTimeout(() => {
+      setSubmitSuccessMsg(isOnline ? '✓ Salvo e sincronizado com Firestore!' : '✓ Salvo no aparelho (modo offline)');
+      setTimeout(() => {
+        setIsSubmitting(false);
+        onSaveLog(log);
+      }, 550);
+    }, 450);
+  };
+
+  const renderSavingIndicator = () => {
+    if (isSubmitting) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 animate-pulse">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600 dark:text-teal-400" />
+          <span>{submitSuccessMsg || 'Sincronizando com Firestore...'}</span>
+        </div>
+      );
+    }
+
+    if (submitSuccessMsg) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+          <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span>{submitSuccessMsg}</span>
+        </div>
+      );
+    }
+
+    if (draftStatus === 'saving') {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/40">
+          <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+          <span>Salvando rascunho local...</span>
+        </div>
+      );
+    }
+
+    if (draftStatus === 'saved' && lastDraftTime) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+          <Check className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+          <span>Rascunho salvo às {lastDraftTime}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-slate-50 dark:bg-slate-850 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-800">
+        <Cloud className="w-3 h-3 text-slate-400" />
+        <span>Sincronização em nuvem ativa</span>
+      </div>
+    );
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* ── NOTIFICAÇÃO DE SALVAMENTO VISÍVEL (ZERO DÚVIDA) ── */}
+      {isSubmitting && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-teal-500 text-slate-800 dark:text-slate-100 py-3.5 px-6 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in zoom-in-95 max-w-md w-[calc(100%-2rem)]"
+        >
+          {submitSuccessMsg?.startsWith('✓') ? (
+            <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-xl shrink-0">
+              <Check className="w-5 h-5" />
+            </div>
+          ) : (
+            <div className="p-2 bg-teal-500/10 text-teal-500 rounded-xl shrink-0">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <strong className="text-xs font-bold block text-slate-800 dark:text-slate-100">
+              {submitSuccessMsg?.startsWith('✓') ? 'Alterações Salvas com Sucesso!' : 'Salvando alterações...'}
+            </strong>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+              {submitSuccessMsg || 'Gravando no aparelho e sincronizando com Firestore...'}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 dark:border-slate-800 pb-4 gap-2">
         <div>
           <div className="flex items-center gap-2">
@@ -1522,7 +1826,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               <button
                 type="button"
                 onClick={onBack}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 rounded-lg transition-colors cursor-pointer"
                 title="Voltar ao Painel"
                 aria-label="Voltar ao Painel"
               >
@@ -1537,12 +1841,46 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
             Preencha hoje, {fmtDate(todayStr)}. Registros frequentes trazem previsões de flare precisas.
           </p>
         </div>
-        {existingLog && (
-          <span className="text-[11px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/30 px-3 py-1 rounded-full text-center sm:self-center">
-            ✓ Já registrado hoje
-          </span>
-        )}
+
+        {/* State Badges Group (Draft, Firestore Sync, Already Logged Today) */}
+        <div className="flex flex-wrap items-center gap-2 sm:self-center">
+          {renderSavingIndicator()}
+          {existingLog && (
+            <span className="text-[11px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/30 px-3 py-1 rounded-full text-center">
+              ✓ Já registrado hoje
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Discrete Restored Draft Notification Banner */}
+      {isDraftRestored && (
+        <div className="p-3 bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-teal-900 dark:text-teal-200 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <span className="text-base select-none">📝</span>
+            <div>
+              <span className="font-bold">Rascunho não finalizado recuperado.</span>
+              <span className="opacity-90 ml-1">Suas alterações não salvas foram preservadas neste dispositivo.</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="px-2.5 py-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100/50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
+            >
+              Descartar rascunho
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDraftRestored(false)}
+              className="px-2.5 py-1 text-[11px] font-bold bg-white dark:bg-slate-800 border border-teal-200 dark:border-teal-800 rounded-lg transition-colors cursor-pointer"
+            >
+              Manter rascunho
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Recall Period Reference Banner */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50/60 dark:from-amber-950/15 dark:to-slate-900 border border-amber-200/60 dark:border-amber-900/30 p-4 rounded-2xl flex items-start gap-3 shadow-sm select-none">
@@ -1561,7 +1899,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
             </span>
             <div>
               <h4 className="font-poppins font-bold text-xs text-slate-800 dark:text-slate-100">
-                Atalhos Rápidos de Sintomas (1 Toque)
+                Atalhos Rápidos de Sintomas
               </h4>
               <p className="text-[10px] text-slate-400">
                 Está com muita dor, cansaço ou sem energia para digitar? Selecione o estado atual:
@@ -1576,8 +1914,8 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button
             type="button"
-            onClick={() => handleApplyDiaryPreset('severe')}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer active:scale-98 ${
+            onClick={() => handleOpenPresetModal('severe')}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer active:scale-98 min-h-[52px] ${
               pain != null && pain >= 8
                 ? 'border-rose-500 bg-rose-100/80 dark:bg-rose-950/50 text-rose-900 dark:text-rose-200 shadow-xs'
                 : 'border-rose-200 dark:border-rose-900/40 bg-rose-50/60 hover:bg-rose-100/70 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300'
@@ -1587,13 +1925,13 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               <span className="text-xs font-bold">Crise Aguda</span>
               <span>🚨</span>
             </div>
-            <p className="text-[10px] opacity-80 mt-0.5">Dor 8/10, Pior 9, Fadiga 8</p>
+            <p className="text-[11px] opacity-80 mt-0.5">Sugestão inicial para dor forte</p>
           </button>
 
           <button
             type="button"
-            onClick={() => handleApplyDiaryPreset('moderate')}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer active:scale-98 ${
+            onClick={() => handleOpenPresetModal('moderate')}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer active:scale-98 min-h-[52px] ${
               pain === 5
                 ? 'border-amber-500 bg-amber-100/80 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 shadow-xs'
                 : 'border-amber-200 dark:border-amber-900/40 bg-amber-50/60 hover:bg-amber-100/70 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300'
@@ -1603,13 +1941,13 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               <span className="text-xs font-bold">Dor Moderada</span>
               <span>⚡</span>
             </div>
-            <p className="text-[10px] opacity-80 mt-0.5">Dor 5/10, Pior 6, Fadiga 5</p>
+            <p className="text-[11px] opacity-80 mt-0.5">Sugestão para dia incômodo</p>
           </button>
 
           <button
             type="button"
-            onClick={() => handleApplyDiaryPreset('fatigue_fog')}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer active:scale-98 ${
+            onClick={() => handleOpenPresetModal('fatigue_fog')}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer active:scale-98 min-h-[52px] ${
               fatigue === 9
                 ? 'border-purple-500 bg-purple-100/80 dark:bg-purple-950/50 text-purple-900 dark:text-purple-200 shadow-xs'
                 : 'border-purple-200 dark:border-purple-900/40 bg-purple-50/60 hover:bg-purple-100/70 dark:bg-purple-950/20 text-purple-800 dark:text-purple-300'
@@ -1619,13 +1957,13 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               <span className="text-xs font-bold">Fadiga & Névoa</span>
               <span>🧠</span>
             </div>
-            <p className="text-[10px] opacity-80 mt-0.5">Fadiga 9/10, Névoa 8/10</p>
+            <p className="text-[11px] opacity-80 mt-0.5">Sugestão para exaustão e foco</p>
           </button>
 
           <button
             type="button"
-            onClick={() => handleApplyDiaryPreset('mild_stable')}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer active:scale-98 ${
+            onClick={() => handleOpenPresetModal('mild_stable')}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer active:scale-98 min-h-[52px] ${
               pain === 2
                 ? 'border-emerald-500 bg-emerald-100/80 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-200 shadow-xs'
                 : 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/60 hover:bg-emerald-100/70 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300'
@@ -1635,9 +1973,143 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               <span className="text-xs font-bold">Dia Controlado</span>
               <span>🌱</span>
             </div>
-            <p className="text-[10px] opacity-80 mt-0.5">Dor 2/10, Disposição 7</p>
+            <p className="text-[11px] opacity-80 mt-0.5">Sugestão para dia estável</p>
           </button>
         </div>
+
+        {/* MODAL / DRAWER DE CONFIRMAÇÃO CONSCIENTE DO PRESET (ETAPA 3.2) */}
+        {presetDraft && (
+          <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4 animate-fade-in">
+            <div className="flex items-start justify-between gap-2 border-b border-slate-200/60 dark:border-slate-800/80 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{presetDraft.icon}</span>
+                <div>
+                  <h4 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100">
+                    {presetDraft.label}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {presetDraft.description}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPresetDraft(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+                aria-label="Fechar confirmação"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Dor */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-center">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block">Dor (0-10)</span>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, pain: Math.max(0, prev.pain - 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="text-base font-black text-rose-500 font-mono w-6">{presetDraft.pain}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, pain: Math.min(10, prev.pain + 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Fadiga */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-center">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block">Fadiga (0-10)</span>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, fatigue: Math.max(0, prev.fatigue - 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="text-base font-black text-amber-500 font-mono w-6">{presetDraft.fatigue}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, fatigue: Math.min(10, prev.fatigue + 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Sono */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-center">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block">Sono (0-10)</span>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, sleep: Math.max(0, prev.sleep - 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="text-base font-black text-sky-500 font-mono w-6">{presetDraft.sleep}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, sleep: Math.min(10, prev.sleep + 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Função */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-center">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block">Função (0-10)</span>
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, function: Math.max(0, prev.function - 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="text-base font-black text-emerald-500 font-mono w-6">{presetDraft.function}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPresetDraft(prev => prev ? { ...prev, function: Math.min(10, prev.function + 1) } : null)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPresetDraft(null)}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 cursor-pointer min-h-[44px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPresetDraft}
+                className="px-5 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer min-h-[44px]"
+              >
+                ✓ Aplicar e Preencher Meu Diário
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Conversational AI Voice Check-In Banner */}
@@ -1876,7 +2348,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
 
       {!isDetailed ? (
         <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3.5 sm:p-5 rounded-2xl shadow-sm space-y-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-50 dark:border-slate-800/80">
               <h3 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-teal-500" />
@@ -1887,24 +2359,51 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               </span>
             </div>
 
-            {/* Pain Slider */}
-            <div className="space-y-2">
+            {/* Pain Slider & Keypad */}
+            <div className="space-y-2.5">
               <div className="flex justify-between items-center">
-                <label htmlFor="quick-slider-pain" className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
-                  Intensidade da Dor Geral
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="quick-slider-pain" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    Intensidade da Dor Geral
+                  </label>
+                  <div className="relative group inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowPainHelp(!showPainHelp)}
+                      className="text-slate-400 hover:text-rose-500 transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="O que significa este parâmetro para o acompanhamento?"
+                      aria-label="Ver explicação sobre intensidade da dor"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                      <strong className="block text-rose-400 font-bold mb-0.5">Dor Geral (0 a 10)</strong>
+                      Mede a intensidade física percebida nas últimas 24h. Essencial para mapear crises (flares), avaliar a resposta a remédios e traçar correlações clínicas.
+                      <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setShowPainHelp(!showPainHelp)}
-                    className="text-slate-400 hover:text-rose-500 transition-colors"
-                    title="Ver explicação"
-                    aria-label="Ver explicação sobre intensidade da dor"
+                    onClick={() => setPain(prev => Math.max(0, (prev ?? 0) - 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Diminuir dor"
                   >
-                    <HelpCircle className="w-3.5 h-3.5" />
+                    -
                   </button>
-                </label>
-                <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${pain != null ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
-                  {pain != null ? `${pain} / 10` : 'Não avaliado (arraste para definir)'}
-                </span>
+                  <span className={`text-sm font-black px-2.5 py-1 rounded-lg transition-all ${pain != null ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/30' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
+                    {pain != null ? `${pain}/10` : 'Definir'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPain(prev => Math.min(10, (prev ?? 0) + 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Aumentar dor"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               {showPainHelp && (
                 <div className="p-3 bg-rose-50/50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-900/30 rounded-xl text-sm text-rose-800 dark:text-rose-300 leading-relaxed space-y-1">
@@ -1931,32 +2430,73 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                 aria-valuemax={10}
                 aria-valuenow={pain ?? 0}
                 aria-label="Intensidade da Dor Geral de 0 a 10"
-                className={`w-full cursor-pointer h-1.5 rounded-lg appearance-none transition-all ${pain != null ? 'accent-rose-500 bg-rose-200 dark:bg-rose-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
+                className={`w-full cursor-pointer h-2 rounded-lg appearance-none transition-all ${pain != null ? 'accent-rose-500 bg-rose-200 dark:bg-rose-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
               />
-              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
-                <span>0 (Sem dor)</span>
-                <span>10 (Pior dor possível)</span>
+              {/* Teclado numérico 0 a 10 sem barra de rolagem horizontal (11 colunas na mesma tela) */}
+              <div className="grid grid-cols-11 gap-0.5 sm:gap-1.5 w-full py-1 select-none">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setPain(num)}
+                    className={`h-9 sm:h-11 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center cursor-pointer p-0 select-none active:scale-90 ${
+                      pain === num
+                        ? 'bg-rose-500 text-white shadow-xs font-black scale-105'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                    aria-label={`Selecionar dor ${num}`}
+                  >
+                    {num}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Fatigue Slider */}
-            <div className="space-y-2">
+            {/* Fatigue Slider & Keypad */}
+            <div className="space-y-2.5">
               <div className="flex justify-between items-center">
-                <label htmlFor="quick-slider-fatigue" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
-                  Fadiga e Cansaço
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="quick-slider-fatigue" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    Fadiga e Cansaço
+                  </label>
+                  <div className="relative group inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowFatigueHelp(!showFatigueHelp)}
+                      className="text-slate-400 hover:text-amber-500 transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="O que significa este parâmetro para o acompanhamento?"
+                      aria-label="Ver explicação sobre fadiga e cansaço"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                      <strong className="block text-amber-400 font-bold mb-0.5">Fadiga e Exaustão (0 a 10)</strong>
+                      Avalia o cansaço desproporcional e o nevoeiro mental. Ajuda a distinguir fadiga física habitual de fadiga inflamatória ou central.
+                      <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setShowFatigueHelp(!showFatigueHelp)}
-                    className="text-slate-400 hover:text-amber-500 transition-colors"
-                    title="Ver explicação"
-                    aria-label="Ver explicação sobre fadiga e cansaço"
+                    onClick={() => setFatigue(prev => Math.max(0, (prev ?? 0) - 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Diminuir fadiga"
                   >
-                    <HelpCircle className="w-3.5 h-3.5" />
+                    -
                   </button>
-                </label>
-                <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${fatigue != null ? 'text-amber-500 bg-amber-50 dark:bg-amber-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
-                  {fatigue != null ? `${fatigue} / 10` : 'Não avaliado (arraste para definir)'}
-                </span>
+                  <span className={`text-sm font-black px-2.5 py-1 rounded-lg transition-all ${fatigue != null ? 'text-amber-500 bg-amber-50 dark:bg-amber-950/30' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
+                    {fatigue != null ? `${fatigue}/10` : 'Definir'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFatigue(prev => Math.min(10, (prev ?? 0) + 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Aumentar fadiga"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               {showFatigueHelp && (
                 <div className="p-3 bg-amber-50/50 dark:bg-amber-950/10 border border-amber-100 dark:border-amber-900/30 rounded-xl text-sm text-amber-800 dark:text-amber-300 leading-relaxed space-y-1">
@@ -1966,7 +2506,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                     <li><strong>1 a 3 (Leve)</strong>: Cansaço normal do dia a dia, fácil de contornar.</li>
                     <li><strong>4 a 6 (Moderada)</strong>: Corpo pesado, lentidão física e necessidade de pausas frequentes.</li>
                     <li><strong>7 a 9 (Intensa)</strong>: Exaustão severa, sensação de esforço gigante para tarefas simples.</li>
-                    <li><strong>10 (Esgotamento)</strong>: Exaustão extrema que impede ficar de pé ou fazer qualquer esforço.</li>
+                    <li><strong>10 (Esgotamento)</strong>: Exaustão extrema que impede qualquer esforço.</li>
                   </ul>
                 </div>
               )}
@@ -1983,32 +2523,73 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                 aria-valuemax={10}
                 aria-valuenow={fatigue ?? 0}
                 aria-label="Fadiga e Cansaço de 0 a 10"
-                className={`w-full cursor-pointer h-1.5 rounded-lg appearance-none transition-all ${fatigue != null ? 'accent-amber-500 bg-amber-200 dark:bg-amber-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
+                className={`w-full cursor-pointer h-2 rounded-lg appearance-none transition-all ${fatigue != null ? 'accent-amber-500 bg-amber-200 dark:bg-amber-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
               />
-              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
-                <span>0 (Sem cansaço)</span>
-                <span>10 (Exaustão extrema)</span>
+              {/* Teclado numérico 0 a 10 sem barra de rolagem horizontal (11 colunas na mesma tela) */}
+              <div className="grid grid-cols-11 gap-0.5 sm:gap-1.5 w-full py-1 select-none">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setFatigue(num)}
+                    className={`h-9 sm:h-11 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center cursor-pointer p-0 select-none active:scale-90 ${
+                      fatigue === num
+                        ? 'bg-amber-500 text-white shadow-xs font-black scale-105'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                    aria-label={`Selecionar fadiga ${num}`}
+                  >
+                    {num}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Sleep Slider */}
-            <div className="space-y-2">
+            {/* Sleep Slider & Keypad */}
+            <div className="space-y-2.5">
               <div className="flex justify-between items-center">
-                <label htmlFor="quick-slider-sleep" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
-                  Qualidade do Sono (Sensação de Descanso)
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="quick-slider-sleep" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    Qualidade do Sono
+                  </label>
+                  <div className="relative group inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowSleepHelp(!showSleepHelp)}
+                      className="text-slate-400 hover:text-blue-500 transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="O que significa este parâmetro para o acompanhamento?"
+                      aria-label="Ver explicação sobre qualidade do sono"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                      <strong className="block text-blue-400 font-bold mb-0.5">Qualidade do Sono (0 a 10)</strong>
+                      Monitora se o descanso foi restaurador. Noites fragmentadas reduzem o limiar doloroso e sensibilizam o sistema nervoso central.
+                      <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setShowSleepHelp(!showSleepHelp)}
-                    className="text-slate-400 hover:text-blue-500 transition-colors"
-                    title="Ver explicação"
-                    aria-label="Ver explicação sobre qualidade do sono"
+                    onClick={() => setSleep(prev => Math.max(0, (prev ?? 0) - 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Diminuir sono"
                   >
-                    <HelpCircle className="w-3.5 h-3.5" />
+                    -
                   </button>
-                </label>
-                <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${sleep != null ? 'text-blue-500 bg-blue-50 dark:bg-blue-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
-                  {sleep != null ? `${sleep} / 10` : 'Não avaliado (arraste para definir)'}
-                </span>
+                  <span className={`text-sm font-black px-2.5 py-1 rounded-lg transition-all ${sleep != null ? 'text-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
+                    {sleep != null ? `${sleep}/10` : 'Definir'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSleep(prev => Math.min(10, (prev ?? 0) + 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Aumentar sono"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               {showSleepHelp && (
                 <div className="p-3 bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-900/30 rounded-xl text-sm text-blue-800 dark:text-blue-300 leading-relaxed space-y-1">
@@ -2033,32 +2614,73 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                 aria-valuemax={10}
                 aria-valuenow={sleep ?? 0}
                 aria-label="Qualidade do Sono de 0 a 10"
-                className={`w-full cursor-pointer h-1.5 rounded-lg appearance-none transition-all ${sleep != null ? 'accent-blue-500 bg-blue-200 dark:bg-blue-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
+                className={`w-full cursor-pointer h-2 rounded-lg appearance-none transition-all ${sleep != null ? 'accent-blue-500 bg-blue-200 dark:bg-blue-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
               />
-              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
-                <span>0 (Muito cansado / Não reparador)</span>
-                <span>10 (Totalmente descansado / Reparador)</span>
+              {/* Teclado numérico 0 a 10 sem barra de rolagem horizontal (11 colunas na mesma tela) */}
+              <div className="grid grid-cols-11 gap-0.5 sm:gap-1.5 w-full py-1 select-none">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setSleep(num)}
+                    className={`h-9 sm:h-11 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center cursor-pointer p-0 select-none active:scale-90 ${
+                      sleep === num
+                        ? 'bg-blue-500 text-white shadow-xs font-black scale-105'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                    aria-label={`Selecionar sono ${num}`}
+                  >
+                    {num}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Function Slider */}
-            <div className="space-y-2">
+            {/* Function Slider & Keypad */}
+            <div className="space-y-2.5">
               <div className="flex justify-between items-center">
-                <label htmlFor="quick-slider-function" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
-                  Nível de Funcionalidade Física
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="quick-slider-function" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    Nível de Funcionalidade Física
+                  </label>
+                  <div className="relative group inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowFunctionHelp(!showFunctionHelp)}
+                      className="text-slate-400 hover:text-emerald-500 transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="O que significa este parâmetro para o acompanhamento?"
+                      aria-label="Ver explicação sobre funcionalidade física"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                      <strong className="block text-emerald-400 font-bold mb-0.5">Funcionalidade Física (0 a 10)</strong>
+                      Mede a sua autonomia nas atividades habituais (vestir, cozinhar, caminhar). É a métrica mais relevante para guiar reabilitação e qualidade de vida.
+                      <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setShowFunctionHelp(!showFunctionHelp)}
-                    className="text-slate-400 hover:text-emerald-500 transition-colors"
-                    title="Ver explicação"
-                    aria-label="Ver explicação sobre funcionalidade física"
+                    onClick={() => setFunction(prev => Math.max(0, (prev ?? 0) - 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Diminuir funcionalidade"
                   >
-                    <HelpCircle className="w-3.5 h-3.5" />
+                    -
                   </button>
-                </label>
-                <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${fun != null ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
-                  {fun != null ? `${fun} / 10` : 'Não avaliado (arraste para definir)'}
-                </span>
+                  <span className={`text-sm font-black px-2.5 py-1 rounded-lg transition-all ${fun != null ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
+                    {fun != null ? `${fun}/10` : 'Definir'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFunction(prev => Math.min(10, (prev ?? 0) + 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Aumentar funcionalidade"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               {showFunctionHelp && (
                 <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-sm text-emerald-800 dark:text-emerald-400 leading-relaxed space-y-1">
@@ -2083,32 +2705,73 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                 aria-valuemax={10}
                 aria-valuenow={fun ?? 0}
                 aria-label="Nível de Funcionalidade Física de 0 a 10"
-                className={`w-full cursor-pointer h-1.5 rounded-lg appearance-none transition-all ${fun != null ? 'accent-emerald-500 bg-emerald-200 dark:bg-emerald-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
+                className={`w-full cursor-pointer h-2 rounded-lg appearance-none transition-all ${fun != null ? 'accent-emerald-500 bg-emerald-200 dark:bg-emerald-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
               />
-              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
-                <span>0 (Limitação total / dependente)</span>
-                <span>10 (Atividades normais / sem limitação)</span>
+              {/* Teclado numérico 0 a 10 sem barra de rolagem horizontal (11 colunas na mesma tela) */}
+              <div className="grid grid-cols-11 gap-0.5 sm:gap-1.5 w-full py-1 select-none">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setFunction(num)}
+                    className={`h-9 sm:h-11 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center cursor-pointer p-0 select-none active:scale-90 ${
+                      fun === num
+                        ? 'bg-emerald-500 text-white shadow-xs font-black scale-105'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                    aria-label={`Selecionar funcionalidade ${num}`}
+                  >
+                    {num}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Stiffness & Movement Limitation Slider */}
-            <div className="space-y-2">
+            {/* Stiffness & Movement Limitation Slider & Keypad */}
+            <div className="space-y-2.5">
               <div className="flex justify-between items-center">
-                <label htmlFor="quick-slider-stiffness" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
-                  Dificuldade de Movimento e Rigidez
+                <div className="flex items-center gap-1.5">
+                  <label htmlFor="quick-slider-stiffness" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                    Dificuldade de Movimento e Rigidez
+                  </label>
+                  <div className="relative group inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowRigidityHelp(!showRigidityHelp)}
+                      className="text-slate-400 hover:text-cyan-500 transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="O que significa este parâmetro para o acompanhamento?"
+                      aria-label="Ver explicação sobre rigidez e movimento"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                      <strong className="block text-cyan-400 font-bold mb-0.5">Rigidez e Movimento (0 a 10)</strong>
+                      Avalia o travamento articular matinal ou pós-repouso. Indicador direto de atividade inflamatória articular e fascial.
+                      <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setShowRigidityHelp(!showRigidityHelp)}
-                    className="text-slate-400 hover:text-cyan-500 transition-colors"
-                    title="Ver explicação"
-                    aria-label="Ver explicação sobre rigidez e movimento"
+                    onClick={() => setStiffness(prev => Math.max(0, (prev ?? 0) - 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Diminuir rigidez"
                   >
-                    <HelpCircle className="w-3.5 h-3.5" />
+                    -
                   </button>
-                </label>
-                <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${stiffness != null ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
-                  {stiffness != null ? `${stiffness} / 10` : 'Não avaliado (arraste para definir)'}
-                </span>
+                  <span className={`text-sm font-black px-2.5 py-1 rounded-lg transition-all ${stiffness != null ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
+                    {stiffness != null ? `${stiffness}/10` : 'Definir'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStiffness(prev => Math.min(10, (prev ?? 0) + 1))}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 font-bold text-sm cursor-pointer flex items-center justify-center active:scale-90"
+                    aria-label="Aumentar rigidez"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               {showRigidityHelp && (
                 <div className="p-3 bg-cyan-50/50 dark:bg-cyan-950/10 border border-cyan-100 dark:border-cyan-900/30 rounded-xl text-sm text-cyan-800 dark:text-cyan-300 leading-relaxed space-y-1">
@@ -2135,18 +2798,32 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                 aria-valuemax={10}
                 aria-valuenow={stiffness ?? 0}
                 aria-label="Dificuldade de Movimento e Rigidez de 0 a 10"
-                className={`w-full cursor-pointer h-1.5 rounded-lg appearance-none transition-all ${stiffness != null ? 'accent-cyan-500 bg-cyan-200 dark:bg-cyan-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
+                className={`w-full cursor-pointer h-2 rounded-lg appearance-none transition-all ${stiffness != null ? 'accent-cyan-500 bg-cyan-200 dark:bg-cyan-950' : 'accent-slate-400 bg-slate-100 dark:bg-slate-800'}`}
               />
-              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
-                <span>0 (Livre / Sem travamento)</span>
-                <span>10 (Travamento intenso / Imobilidade)</span>
+              {/* Teclado numérico 0 a 10 sem barra de rolagem horizontal (11 colunas na mesma tela) */}
+              <div className="grid grid-cols-11 gap-0.5 sm:gap-1.5 w-full py-1 select-none">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setStiffness(num)}
+                    className={`h-9 sm:h-11 rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs transition-all flex items-center justify-center cursor-pointer p-0 select-none active:scale-90 ${
+                      stiffness === num
+                        ? 'bg-cyan-600 text-white shadow-xs font-black scale-105'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                    aria-label={`Selecionar rigidez ${num}`}
+                  >
+                    {num}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Mood selector in Quick Check-In */}
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 space-y-4">
               <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 select-none">
-                <Brain className="w-3.5 h-3.5 text-violet-500" /> Como está seu humor hoje? (Opcional)
+                <Brain className="w-3.5 h-3.5 text-violet-500" /> Como está seu humor hoje?
               </h4>
               <div className="grid grid-cols-5 gap-2">
                 {DIARY.moods.map((m) => {
@@ -2184,36 +2861,53 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
           {/* Triggered Follow-up Questions Panel */}
           {renderAdaptiveGatingPanel()}
 
-          {/* Action buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          {/* Botão de Adicionar mais detalhes (Mais visível e posicionado antes dos botões de salvar/atualizar) */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setIsDetailed(true)}
+              className="patient-main-action-button w-full py-3.5 px-4 bg-teal-50/80 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/50 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm shadow-xs hover:border-teal-400 cursor-pointer active:scale-[0.99]"
+            >
+              <Plus className="w-4 h-4 text-teal-600 dark:text-teal-400 stroke-[2.5]" />
+              <span>Adicionar mais detalhes</span>
+            </button>
+          </div>
+
+          {/* Action buttons com espaçamento consistente */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-3">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={handleSaveQuick}
+              className="patient-main-action-button sm:order-2 flex-[2] py-3.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-75 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/10 transition-all flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-[0.99]"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{submitSuccessMsg || 'Sincronizando com Firestore...'}</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-5 h-5" />
+                  <span>{existingLog ? 'Atualizar Registro' : 'Salvar Registro'}</span>
+                </>
+              )}
+            </button>
             {onBack && (
               <button
                 type="button"
                 onClick={onBack}
-                className="flex-1 py-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-bold rounded-2xl transition-all text-center text-xs cursor-pointer"
+                disabled={isSubmitting}
+                className="sm:order-1 flex-1 py-3.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-all text-center text-xs cursor-pointer disabled:opacity-50 active:scale-[0.99]"
               >
                 Voltar ao Painel
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleSaveQuick}
-              className={`${onBack ? 'flex-[2]' : 'w-full'} py-3 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/10 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer`}
-            >
-              <Check className="w-5 h-5" />
-              Salvar Registro Rápido
-            </button>
           </div>
 
-          <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={() => setIsDetailed(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-bold py-2 px-4 rounded-xl hover:bg-teal-500/5 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Adicionar mais detalhes (rigidez, exercício, ciclo, clima, medicamentos...)
-            </button>
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-1 select-none">
+            <Cloud className="w-3.5 h-3.5 text-teal-500" />
+            <span>Armazenamento local persistente e sincronização segura com Firestore</span>
           </div>
         </form>
       ) : (
@@ -2257,15 +2951,22 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
             <div className="flex justify-between items-center">
               <label htmlFor="slider-pain" className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
                 Intensidade da Dor Geral
-                <button
-                  type="button"
-                  onClick={() => setShowPainHelp(!showPainHelp)}
-                  className="text-slate-400 hover:text-rose-500 transition-colors"
-                  title="Ver explicação"
-                  aria-label="Ver explicação sobre intensidade da dor"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
+                <div className="relative group inline-flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowPainHelp(!showPainHelp)}
+                    className="text-slate-400 hover:text-rose-500 transition-colors p-0.5 rounded cursor-pointer"
+                    title="O que significa este parâmetro para o acompanhamento?"
+                    aria-label="Ver explicação sobre intensidade da dor"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                    <strong className="block text-rose-400 font-bold mb-0.5">Dor Geral (0 a 10)</strong>
+                    Mede a intensidade física percebida nas últimas 24h. Essencial para mapear crises (flares), avaliar a resposta a remédios e traçar correlações clínicas.
+                    <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                  </div>
+                </div>
               </label>
               <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${pain != null ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
                 {pain != null ? `${pain} / 10` : 'Não avaliado (arraste para definir)'}
@@ -2278,7 +2979,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
                   <li><strong>0</strong>: Sem dor alguma.</li>
                   <li><strong>1 a 3 (Leve)</strong>: Dor leve, presente mas que não interfere nas suas atividades.</li>
                   <li><strong>4 a 6 (Moderada)</strong>: Dor incômoda, exige esforço extra para focar ou fazer tarefas comuns.</li>
-                  <li><strong>7 a 9 (Intensa)</strong>: Dor forte, atrapalha muito a concentration, o trabalho ou movimentos básicos.</li>
+                  <li><strong>7 a 9 (Intensa)</strong>: Dor forte, atrapalha muito a concentração, o trabalho ou movimentos básicos.</li>
                   <li><strong>10 (Insuportável)</strong>: A pior dor possível imaginável, que impede qualquer atividade.</li>
                 </ul>
               </div>
@@ -2309,15 +3010,22 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
             <div className="flex justify-between items-center">
               <label htmlFor="slider-fatigue" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
                 Fadiga e Cansaço
-                <button
-                  type="button"
-                  onClick={() => setShowFatigueHelp(!showFatigueHelp)}
-                  className="text-slate-400 hover:text-amber-500 transition-colors"
-                  title="Ver explicação"
-                  aria-label="Ver explicação sobre fadiga e cansaço"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
+                <div className="relative group inline-flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowFatigueHelp(!showFatigueHelp)}
+                    className="text-slate-400 hover:text-amber-500 transition-colors p-0.5 rounded cursor-pointer"
+                    title="O que significa este parâmetro para o acompanhamento?"
+                    aria-label="Ver explicação sobre fadiga e cansaço"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                    <strong className="block text-amber-400 font-bold mb-0.5">Fadiga e Cansaço (0 a 10)</strong>
+                    Diferencia cansaço mecânico de exaustão profunda ("bateria descarregada") característica da fadiga crônica e sensibilização central.
+                    <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                  </div>
+                </div>
               </label>
               <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${fatigue != null ? 'text-amber-500 bg-amber-50 dark:bg-amber-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
                 {fatigue != null ? `${fatigue} / 10` : 'Não avaliado (arraste para definir)'}
@@ -2361,15 +3069,22 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
             <div className="flex justify-between items-center">
               <label htmlFor="slider-sleep" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
                 Qualidade do Sono (Sensação de Descanso)
-                <button
-                  type="button"
-                  onClick={() => setShowSleepHelp(!showSleepHelp)}
-                  className="text-slate-400 hover:text-blue-500 transition-colors"
-                  title="Ver explicação"
-                  aria-label="Ver explicação sobre qualidade do sono"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
+                <div className="relative group inline-flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowSleepHelp(!showSleepHelp)}
+                    className="text-slate-400 hover:text-blue-500 transition-colors p-0.5 rounded cursor-pointer"
+                    title="O que significa este parâmetro para o acompanhamento?"
+                    aria-label="Ver explicação sobre qualidade do sono"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                    <strong className="block text-blue-400 font-bold mb-0.5">Qualidade do Sono (0 a 10)</strong>
+                    Monitora se o descanso foi restaurador. Noites fragmentadas reduzem o limiar doloroso e sensibilizam o sistema nervoso central.
+                    <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                  </div>
+                </div>
               </label>
               <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${sleep != null ? 'text-blue-500 bg-blue-50 dark:bg-blue-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
                 {sleep != null ? `${sleep} / 10` : 'Não avaliado (arraste para definir)'}
@@ -2441,15 +3156,22 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
             <div className="flex justify-between items-center">
               <label htmlFor="slider-function" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
                 Nível de Funcionalidade Física
-                <button
-                  type="button"
-                  onClick={() => setShowFunctionHelp(!showFunctionHelp)}
-                  className="text-slate-400 hover:text-emerald-500 transition-colors"
-                  title="Ver explicação"
-                  aria-label="Ver explicação sobre funcionalidade física"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
+                <div className="relative group inline-flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowFunctionHelp(!showFunctionHelp)}
+                    className="text-slate-400 hover:text-emerald-500 transition-colors p-0.5 rounded cursor-pointer"
+                    title="O que significa este parâmetro para o acompanhamento?"
+                    aria-label="Ver explicação sobre funcionalidade física"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                    <strong className="block text-emerald-400 font-bold mb-0.5">Funcionalidade Física (0 a 10)</strong>
+                    Mede a sua autonomia nas atividades habituais (vestir, cozinhar, caminhar). É a métrica mais relevante para guiar reabilitação e qualidade de vida.
+                    <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                  </div>
+                </div>
               </label>
               <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${fun != null ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
                 {fun != null ? `${fun} / 10` : 'Não avaliado (arraste para definir)'}
@@ -2490,15 +3212,22 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               <div className="flex justify-between items-center">
                 <label htmlFor="slider-stiffness" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer">
                   Dificuldade de Movimento e Rigidez Articular
-                  <button
-                    type="button"
-                    onClick={() => setShowRigidityHelp(!showRigidityHelp)}
-                    className="text-slate-400 hover:text-cyan-500 transition-colors"
-                    title="Ver explicação"
-                    aria-label="Ver explicação sobre rigidez e movimento"
-                  >
-                    <HelpCircle className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="relative group inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowRigidityHelp(!showRigidityHelp)}
+                      className="text-slate-400 hover:text-cyan-500 transition-colors p-0.5 rounded cursor-pointer"
+                      title="O que significa este parâmetro para o acompanhamento?"
+                      aria-label="Ver explicação sobre rigidez e movimento"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block z-30 w-64 sm:w-72 p-2.5 bg-slate-900/95 dark:bg-slate-950/95 text-white text-[11px] font-normal rounded-xl shadow-xl pointer-events-none border border-slate-800 leading-snug">
+                      <strong className="block text-cyan-400 font-bold mb-0.5">Rigidez e Movimento (0 a 10)</strong>
+                      Avalia o travamento articular matinal ou pós-repouso. Indicador direto de atividade inflamatória articular e fascial.
+                      <span className="text-[9px] text-slate-400 block mt-1">Toque para expandir a escala com exemplos.</span>
+                    </div>
+                  </div>
                 </label>
                 <span className={`text-sm font-bold px-2 py-0.5 rounded transition-all ${stiffness != null ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30 font-black text-sm' : 'text-slate-400 bg-slate-50 dark:bg-slate-800'}`}>
                   {stiffness != null ? `${stiffness} / 10` : 'Não avaliado (arraste para definir)'}
@@ -4401,7 +5130,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
               className="inline-flex items-center gap-1.5 text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 font-bold transition-all cursor-pointer"
             >
               <Mic className="w-3.5 h-3.5" />
-              Relatar por Voz (Assistente Rápido)
+              Relatar por Voz
             </button>
           </div>
           <textarea
@@ -4414,24 +5143,40 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({ patientData, patient
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row gap-3 pt-3">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleSave}
+            className="patient-main-action-button sm:order-2 flex-[2] py-3.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-75 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/10 transition-all flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-[0.99]"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>{submitSuccessMsg || 'Sincronizando com Firestore...'}</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-5 h-5" />
+                <span>{existingLog ? 'Atualizar Registro' : 'Salvar Registro'}</span>
+              </>
+            )}
+          </button>
           {onBack && (
             <button
               type="button"
               onClick={onBack}
-              className="flex-1 py-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-bold rounded-2xl transition-all text-center text-xs"
+              disabled={isSubmitting}
+              className="sm:order-1 flex-1 py-3.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-all text-center text-xs cursor-pointer disabled:opacity-50 active:scale-[0.99]"
             >
-              Cancelar e Voltar
+              Voltar ao Painel
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleSave}
-            className={`${onBack ? 'flex-[2]' : 'w-full'} py-3 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/10 transition-all flex items-center justify-center gap-1.5 text-xs`}
-          >
-            <Check className="w-5 h-5" />
-            {existingLog ? '✓ Atualizar Registro Diário' : 'Salvar Registro Diário'}
-          </button>
+        </div>
+
+        <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 pt-1 select-none">
+          <Cloud className="w-3.5 h-3.5 text-teal-500" />
+          <span>Armazenamento local persistente e sincronização segura com Firestore</span>
         </div>
       </form>
       )}

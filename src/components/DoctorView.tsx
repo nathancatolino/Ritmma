@@ -54,11 +54,14 @@ import {
   Gauge,
   Moon,
   Sparkles,
-  CalendarDays
+  CalendarDays,
+  FlaskConical
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { RitmaLogo } from './RitmaLogo';
 import ConsultationSummary from './ConsultationSummary';
+import { Tooltip, InfoTooltip } from './Tooltip';
+import { ScienceWorkbench } from './ScienceWorkbench';
 
 interface DoctorViewProps {
   data: ChronosData;
@@ -79,7 +82,7 @@ export function getSpecialtyCategory(specialty: string | undefined): SpecialtyCa
   return 'medical';
 }
 
-type TabType = 'home' | 'patients' | 'analysis' | 'instruments' | 'settings' | 'news';
+type TabType = 'home' | 'patients' | 'analysis' | 'science' | 'instruments' | 'settings' | 'news';
 
 export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout, onUpdateData }) => {
   const [activeTab, setActiveTab] = useState<TabType>('home');
@@ -1311,6 +1314,7 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
             { id: 'home', icon: Home, label: 'Painel Geral' },
             { id: 'patients', icon: Users, label: 'Fichas de Pacientes' },
             { id: 'analysis', icon: PieChart, label: 'Estatísticas Coorte' },
+            { id: 'science', icon: FlaskConical, label: 'Biociências & Fármacos', badge: 'Grátis' },
             { id: 'instruments', icon: ClipboardList, label: 'Citações de Referência' },
             { id: 'settings', icon: Settings, label: `Clínica & ${getCouncilLabel(account.specialty)}` },
             { id: 'news', icon: Sparkles, label: 'Vem Aí', badge: 'Em breve' }
@@ -1522,8 +1526,12 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                   <span className="text-2xl font-black text-blue-500 block leading-none mb-1">
                     {patients.length}
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     Pacientes Ativos
+                    <InfoTooltip
+                      title="Pacientes Ativos"
+                      content="Total de pacientes com consentimento e vínculo clínico ativo compartilhando dados do diário com seu consultório."
+                    />
                   </span>
                 </div>
 
@@ -1535,8 +1543,12 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                   >
                     {attentionQueue.length}
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     Fila de Atenção (Flares)
+                    <InfoTooltip
+                      title="Fila de Atenção (Flares)"
+                      content="Pacientes com score de risco de crise elevado ou moderado nos últimos registros, sinalizando exacerbação de sintomas."
+                    />
                   </span>
                 </div>
 
@@ -1544,8 +1556,12 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                   <span className="text-2xl font-black text-amber-500 block leading-none mb-1">
                     {pend.length}
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     Vínculos Pendentes
+                    <InfoTooltip
+                      title="Vínculos Pendentes"
+                      content="Pacientes que inseriram seu código de especialista e aguardam autorização do consultório para liberar a visualização."
+                    />
                   </span>
                 </div>
 
@@ -1553,8 +1569,12 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                   <span className="text-2xl font-black text-teal-500 block leading-none mb-1">
                     {avgAdherence}%
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     Aderência Média
+                    <InfoTooltip
+                      title="Aderência Média"
+                      content="Taxa média percentual de preenchimento do diário nos últimos 14 dias entre seus pacientes vinculados."
+                    />
                   </span>
                 </div>
               </div>
@@ -2055,6 +2075,10 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                 </p>
               </div>
             </div>
+          )}
+
+          {activeTab === 'science' && (
+            <ScienceWorkbench />
           )}
 
           {activeTab === 'news' && (

@@ -1,0 +1,321 @@
+{
+  "id": "das28",
+  "version": "1.0",
+  "instrument": "DAS28 — contagens de 28 articulações",
+  "count": 28,
+  "joints": [
+    {
+      "id": "shoulder_R",
+      "label": "Ombro direito",
+      "asset": "corpo-anterior",
+      "x": 145,
+      "y": 226,
+      "rx": 16,
+      "ry": 16,
+      "patient_side": "direita",
+      "view": "anterior"
+    },
+    {
+      "id": "shoulder_L",
+      "label": "Ombro esquerdo",
+      "asset": "corpo-anterior",
+      "x": 365,
+      "y": 226,
+      "rx": 16,
+      "ry": 16,
+      "patient_side": "esquerda",
+      "view": "anterior"
+    },
+    {
+      "id": "elbow_R",
+      "label": "Cotovelo direito",
+      "asset": "corpo-anterior",
+      "x": 118,
+      "y": 378,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "anterior"
+    },
+    {
+      "id": "elbow_L",
+      "label": "Cotovelo esquerdo",
+      "asset": "corpo-anterior",
+      "x": 392,
+      "y": 378,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "anterior"
+    },
+    {
+      "id": "wrist_R",
+      "label": "Punho direito",
+      "asset": "corpo-anterior",
+      "x": 75,
+      "y": 498,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "anterior"
+    },
+    {
+      "id": "wrist_L",
+      "label": "Punho esquerdo",
+      "asset": "corpo-anterior",
+      "x": 424,
+      "y": 498,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "anterior"
+    },
+    {
+      "id": "knee_R",
+      "label": "Joelho direito",
+      "asset": "corpo-anterior",
+      "x": 207,
+      "y": 642,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "anterior"
+    },
+    {
+      "id": "knee_L",
+      "label": "Joelho esquerdo",
+      "asset": "corpo-anterior",
+      "x": 303,
+      "y": 642,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "anterior"
+    },
+    {
+      "id": "mcp1_R",
+      "label": "Metacarpofalângica 1, mão direita",
+      "asset": "mao-direita",
+      "x": 219,
+      "y": 217,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp2_R",
+      "label": "Metacarpofalângica 2, mão direita",
+      "asset": "mao-direita",
+      "x": 190,
+      "y": 187,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp3_R",
+      "label": "Metacarpofalângica 3, mão direita",
+      "asset": "mao-direita",
+      "x": 143,
+      "y": 186,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp4_R",
+      "label": "Metacarpofalângica 4, mão direita",
+      "asset": "mao-direita",
+      "x": 102,
+      "y": 186,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp5_R",
+      "label": "Metacarpofalângica 5, mão direita",
+      "asset": "mao-direita",
+      "x": 65,
+      "y": 198,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip1_R",
+      "label": "Interfalângica do polegar 1, mão direita",
+      "asset": "mao-direita",
+      "x": 234,
+      "y": 174,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip2_R",
+      "label": "Interfalângica proximal 2, mão direita",
+      "asset": "mao-direita",
+      "x": 190,
+      "y": 124,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip3_R",
+      "label": "Interfalângica proximal 3, mão direita",
+      "asset": "mao-direita",
+      "x": 138,
+      "y": 110,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip4_R",
+      "label": "Interfalângica proximal 4, mão direita",
+      "asset": "mao-direita",
+      "x": 89,
+      "y": 126,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip5_R",
+      "label": "Interfalângica proximal 5, mão direita",
+      "asset": "mao-direita",
+      "x": 54,
+      "y": 158,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "direita",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp1_L",
+      "label": "Metacarpofalângica 1, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 48,
+      "y": 220,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp2_L",
+      "label": "Metacarpofalângica 2, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 93,
+      "y": 190,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp3_L",
+      "label": "Metacarpofalângica 3, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 137,
+      "y": 186,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp4_L",
+      "label": "Metacarpofalângica 4, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 178,
+      "y": 192,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "mcp5_L",
+      "label": "Metacarpofalângica 5, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 204,
+      "y": 202,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip1_L",
+      "label": "Interfalângica do polegar 1, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 37,
+      "y": 184,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip2_L",
+      "label": "Interfalângica proximal 2, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 87,
+      "y": 126,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip3_L",
+      "label": "Interfalângica proximal 3, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 135,
+      "y": 109,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip4_L",
+      "label": "Interfalângica proximal 4, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 184,
+      "y": 128,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    },
+    {
+      "id": "pip5_L",
+      "label": "Interfalângica proximal 5, mão esquerda",
+      "asset": "mao-esquerda",
+      "x": 214,
+      "y": 157,
+      "rx": 14,
+      "ry": 14,
+      "patient_side": "esquerda",
+      "view": "dorsal"
+    }
+  ],
+  "dimensions": [
+    "tender",
+    "swollen"
+  ],
+  "warning": "A marcação não substitui exame clínico; DAS28 completo depende de PCR/VHS e avaliação global; não calcular DAS28 apenas com o mapa."
+}

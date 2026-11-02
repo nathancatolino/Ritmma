@@ -70,6 +70,8 @@ export interface WeatherLog {
   pressure: number;
 }
 
+export type WearableDataSource = 'device_api' | 'manual_entry' | 'estimated' | 'demo_simulation';
+
 export interface WearableSyncData {
   steps?: number;
   sleepHours?: number;
@@ -78,6 +80,49 @@ export interface WearableSyncData {
   restingHeartRate?: number; // bpm
   device?: string; // ex: Apple Watch, Garmin
   syncedAt?: string;
+  dataSource?: WearableDataSource;
+  isDemo?: boolean;
+}
+
+export interface InterventionResponse {
+  id: string;
+  type: 'pharmacological' | 'non_pharmacological';
+  name: string; // med name or 'repouso', 'calor_local', 'crioterapia', 'alongamento', 'fisioterapia', 'respiracao'
+  dosage?: string;
+  timeApplied: string; // HH:mm
+  prePainIntensity: number; // 0-10
+  postPainIntensity?: number; // 0-10
+  timeElapsedMinutes?: number; // e.g. 30, 60, 120
+  perceivedRelief?: 'none' | 'partial' | 'significant' | 'complete' | 'worsened';
+  adverseEvents?: string; // e.g. 'sonolência', 'epigastralgia', 'náusea', 'tontura'
+}
+
+export interface PainEpisode {
+  id: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime?: string; // HH:mm
+  ongoing: boolean;
+  locations: string[]; // anatomical regions (e.g., 'lombar', 'cervical', 'joelho_d')
+  initialPain: number; // 0-10
+  peakPain: number; // 0-10
+  finalPain?: number; // 0-10
+  character?: string[]; // queimacao, pontada, peso, latejante, choque, aperto, rigidez
+  associatedSymptoms?: string[]; // nausea, fotofobia, fonofobia, rigidez, tontura, alodinia
+  triggers?: string[]; // estresse, clima, esforco_fisico, privacao_sono, alimentacao
+  interventions?: InterventionResponse[];
+  notes?: string;
+}
+
+export interface ClinicalPhotoRecord {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  bodyRegion: string; // e.g. 'Joelho Direito', 'Articulação MCF', 'Erupção Malar'
+  title: string; // e.g. 'Edema articular matinal', 'Lesão cutânea eritematosa'
+  thumbnailDataUrl: string; // client-side compressed thumbnail (< 35KB)
+  consentConfirmed: boolean;
+  notes?: string;
 }
 
 export interface DailyLog {
@@ -168,8 +213,30 @@ export interface DailyLog {
   infectionTreatmentImpact?: 'nao' | 'pausa_orientada' | 'pausa_propria' | 'antibiotico' | 'antiviral' | 'aumento_corticoide';
   infectionWorkImpact?: 'nao' | 'reduzi_atividades' | 'faltei_trabalho';
   bodyPainMap?: Record<string, number>;
+  advancedPainMarks?: AdvancedPainMark[];
   foodMeals?: FoodMeal[];
   rescueMedsLogs?: RescueMedLog[];
+}
+
+export interface AdvancedPainMark {
+  id: string;
+  type: 'point' | 'region' | 'radiation' | 'joint';
+  asset: string;
+  x: number;
+  y: number;
+  to?: { asset: string; x: number; y: number };
+  radius?: number;
+  intensity: number;
+  side: string;
+  quality: string;
+  structure?: string;
+  label: string;
+  frequency?: string;
+  duration?: string;
+  notes?: string;
+  previousIntensity?: number;
+  source?: 'yesterday_clone' | 'direct';
+  createdAt: string;
 }
 
 export interface RescueMedLog {
@@ -262,6 +329,10 @@ export interface PatientData {
   menstrualCycleType?: 'regular' | 'irregular' | 'amenorrhea' | 'menopause' | 'continuous_hormone';
   cycleLengthDays?: number; // e.g. 28 days
   lastPeriodDate?: string; // YYYY-MM-DD of last period start
+  // Pain Episodes & Crises (Multi-episode tracking)
+  painEpisodes?: PainEpisode[];
+  // Clinical Photographs (High-security compressed thumbnails for visible flares/edema)
+  clinicalPhotos?: ClinicalPhotoRecord[];
 }
 
 export interface LinkRecord {

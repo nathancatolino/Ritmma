@@ -2,41 +2,55 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Component BodyPainMap / VisualPainHistoryMap:
- * Interactive human silhouette (Front & Back) for visual pain recording and
- * longitudinal pain history tracking integrated into the patient's main view.
+ * Component BodyPainMap:
+ * Integrated Medical Pain Atlas (Dr. Nathan v5)
+ * - Official Dr. Nathan clinical art & masks (corpo-anterior, corpo-posterior, mao-direita, mao-esquerda, pe-direito, pe-esquerdo, wpi-anterior, wpi-posterior).
+ * - 4 Specialized Clinical Instruments:
+ *   1. Dor livre (geral): mapeamento de pontos, intensidade 0-10, características clínicas.
+ *   2. WPI-19 (Fibromialgia ACR): 19 polígonos anatômicos oficiais com cálculo dinâmico (0 a 19) e indicador de dor difusa (WPI ≥ 7).
+ *   3. DAS28 (Artrite reumatóide): 28 articulações clássicas (ombros, cotovelos, punhos, joelhos, 10 MCFs e 10 IFPs) com contagem de dor e edema.
+ *   4. Artrite psoriásica & Enteses (PsA): articulações periféricas, enteses (Aquiles e fáscia plantar) e MTFs dos pés.
+ * - Modo Avançado (v5): Ponto focal, Área/Mancha circular translúcida, Linha de irradiação com seta direcional e Localização articular declarada.
+ * - Suporte completo ao histórico de 14 dias, presets rápidos conscientes, persistência via DailyLog.bodyPainMap e DailyLog.advancedPainMarks.
+ * - Tooltips em minúsculas com apenas a primeira letra maiúscula (formato sentença).
  */
 
-import React, { useState, useMemo } from 'react';
-import { DailyLog, PatientData } from '../types';
+import React, { useState, useMemo, useRef } from 'react';
+import { DailyLog, PatientData, AdvancedPainMark } from '../types';
 import { todayISO, fmtDate } from '../utils';
 import { 
   Activity, 
-  Sparkles, 
   Trash2, 
   Calendar, 
   ChevronLeft, 
   ChevronRight, 
-  AlertCircle, 
   TrendingUp, 
-  Award, 
   Heart, 
-  User, 
-  Wand2, 
-  RefreshCw, 
-  X, 
-  Sparkle, 
   Zap, 
-  ShieldAlert, 
-  Clock,
   History,
+  Check,
   CheckCircle2,
-  Filter,
   BarChart2,
+  RotateCcw,
+  Sparkles,
+  Info,
+  ZoomIn,
+  ZoomOut,
+  List,
+  Eye,
+  Sliders,
+  X,
+  Loader2,
+  Stethoscope,
   Layers,
-  ChevronDown,
-  Info
+  ArrowRight,
+  Circle,
+  HelpCircle,
+  Move
 } from 'lucide-react';
+import { Tooltip, InfoTooltip } from './Tooltip';
+import { ATLAS_MASKS, WPI19_REGIONS, DAS28_JOINTS, AtlasMask, WpiRegion, Das28Joint } from '../data/atlasNathanV5Data';
+import { getAnatomicalLabelForCoord, getAnatomicalIrradiationPath } from '../data/anatomicalRouter';
 
 export interface BodyPainMapProps {
   logs: DailyLog[];
@@ -46,69 +60,80 @@ export interface BodyPainMapProps {
   isEmbedded?: boolean;
 }
 
-export interface BodyRegion {
-  key: string;
-  label: string;
-  side: 'front' | 'back';
-  category: 'head_neck' | 'upper_body' | 'arms' | 'spine_pelvis' | 'legs';
-  x: number;
-  y: number;
-  description: string;
-}
+export type ClinicalInstrument = 'free' | 'wpi19' | 'das28' | 'psa' | 'advanced';
+export type VisualScope = 'body' | 'hand' | 'foot' | 'all';
+export type AdvancedMode = 'point' | 'region' | 'radiation' | 'joint';
 
-export const ANATOMICAL_REGIONS: BodyRegion[] = [
-  // FRONT VIEW (Centered at x = 100, y: 50 to 445)
-  { key: 'cabeça_frente', label: 'Cabeça', side: 'front', category: 'head_neck', x: 100, y: 50, description: 'Cefaleia, dor temporomandibular ou facial' },
-  { key: 'pescoço_frente', label: 'Pescoço Anterior', side: 'front', category: 'head_neck', x: 100, y: 92, description: 'Garganta, tireoide ou cervical anterior' },
-  { key: 'ombro_esquerdo_frente', label: 'Ombro Esquerdo', side: 'front', category: 'upper_body', x: 60, y: 110, description: 'Articulação do ombro esquerdo' },
-  { key: 'ombro_direito_frente', label: 'Ombro Direito', side: 'front', category: 'upper_body', x: 140, y: 110, description: 'Articulação do ombro direito' },
-  { key: 'peito_frente', label: 'Tórax / Peito', side: 'front', category: 'upper_body', x: 100, y: 140, description: 'Costelas, esterno ou musculatura peitoral' },
-  { key: 'cotovelo_esquerdo_frente', label: 'Cotovelo Esquerdo', side: 'front', category: 'arms', x: 42, y: 175, description: 'Face anterior ou articulação do cotovelo' },
-  { key: 'cotovelo_direito_frente', label: 'Cotovelo Direito', side: 'front', category: 'arms', x: 158, y: 175, description: 'Face anterior ou articulação do cotovelo' },
-  { key: 'abdômen_frente', label: 'Abdômen', side: 'front', category: 'upper_body', x: 100, y: 195, description: 'Dor visceral, estomacal ou muscular abdominal' },
-  { key: 'punho_mão_esquerda_frente', label: 'Punho / Mão Esquerda', side: 'front', category: 'arms', x: 28, y: 235, description: 'Pequenas articulações e punho esquerdo' },
-  { key: 'punho_mão_direita_frente', label: 'Punho / Mão Direita', side: 'front', category: 'arms', x: 172, y: 235, description: 'Pequenas articulações e punho direito' },
-  { key: 'quadril_esquerdo_frente', label: 'Quadril Esquerdo', side: 'front', category: 'spine_pelvis', x: 74, y: 245, description: 'Articulação coxo-femoral esquerda' },
-  { key: 'quadril_direito_frente', label: 'Quadril Direito', side: 'front', category: 'spine_pelvis', x: 126, y: 245, description: 'Articulação coxo-femoral direita' },
-  { key: 'coxa_esquerda_frente', label: 'Coxa Esquerda', side: 'front', category: 'legs', x: 76, y: 295, description: 'Musculatura quadríceps esquerda' },
-  { key: 'coxa_direita_frente', label: 'Coxa Direita', side: 'front', category: 'legs', x: 124, y: 295, description: 'Musculatura quadríceps direita' },
-  { key: 'joelho_esquerdo_frente', label: 'Joelho Esquerdo', side: 'front', category: 'legs', x: 76, y: 345, description: 'Articulação patelar e ligamentos' },
-  { key: 'joelho_direito_frente', label: 'Joelho Direito', side: 'front', category: 'legs', x: 124, y: 345, description: 'Articulação patelar e ligamentos' },
-  { key: 'canela_panturrilha_esquerda_frente', label: 'Canela Esquerda', side: 'front', category: 'legs', x: 74, y: 395, description: 'Face anterior da tíbia esquerda' },
-  { key: 'canela_panturrilha_direita_frente', label: 'Canela Direita', side: 'front', category: 'legs', x: 126, y: 395, description: 'Face anterior da tíbia direita' },
-  { key: 'pé_esquerdo_frente', label: 'Pé Esquerdo', side: 'front', category: 'legs', x: 70, y: 445, description: 'Articulações do tarso, metatarso e dedos' },
-  { key: 'pé_direito_frente', label: 'Pé Direito', side: 'front', category: 'legs', x: 130, y: 445, description: 'Articulações do tarso, metatarso e dedos' },
+const ASSET_NAMES: Record<string, string> = {
+  'corpo-anterior': 'Vista anterior',
+  'corpo-posterior': 'Vista posterior',
+  'mao-direita': 'Mão direita (dorso)',
+  'mao-esquerda': 'Mão esquerda (dorso)',
+  'pe-direito': 'Pé direito (dorso)',
+  'pe-esquerdo': 'Pé esquerdo (dorso)',
+  'wpi-anterior': 'Vista anterior (WPI)',
+  'wpi-posterior': 'Vista posterior (WPI)'
+};
 
-  // BACK VIEW (Centered at x = 300, y: 50 to 445)
-  { key: 'nuca_cabeça_atrás', label: 'Cabeça Posterior / Nuca', side: 'back', category: 'head_neck', x: 300, y: 50, description: 'Região occipital ou cefaleia tensional' },
-  { key: 'pescoço_cervical_atrás', label: 'Pescoço / Cervical', side: 'back', category: 'head_neck', x: 300, y: 92, description: 'Coluna cervical e trapézio superior' },
-  { key: 'ombro_esquerdo_atrás', label: 'Ombro Esquerdo Posterior', side: 'back', category: 'upper_body', x: 260, y: 110, description: 'Escápula ou ombro posterior esquerdo' },
-  { key: 'ombro_direito_atrás', label: 'Ombro Direito Posterior', side: 'back', category: 'upper_body', x: 340, y: 110, description: 'Escápula ou ombro posterior direito' },
-  { key: 'costas_superior_atrás', label: 'Dorso / Torácica', side: 'back', category: 'spine_pelvis', x: 300, y: 145, description: 'Coluna torácica ou região interescapular' },
-  { key: 'cotovelo_esquerdo_atrás', label: 'Cotovelo Esquerdo Posterior', side: 'back', category: 'arms', x: 242, y: 175, description: 'Olécrano ou face posterior' },
-  { key: 'cotovelo_direito_atrás', label: 'Cotovelo Direito Posterior', side: 'back', category: 'arms', x: 358, y: 175, description: 'Olécrano ou face posterior' },
-  { key: 'lombar_atrás', label: 'Coluna Lombar', side: 'back', category: 'spine_pelvis', x: 300, y: 205, description: 'Região lombar ou transição lombo-sacra' },
-  { key: 'mão_esquerda_atrás', label: 'Mão Esquerda Posterior', side: 'back', category: 'arms', x: 228, y: 235, description: 'Dorso da mão e punho esquerdo' },
-  { key: 'mão_direita_atrás', label: 'Mão Direita Posterior', side: 'back', category: 'arms', x: 372, y: 235, description: 'Dorso da mão e punho direito' },
-  { key: 'glúteo_quadril_esquerdo_atrás', label: 'Glúteo / Quadril Esquerdo', side: 'back', category: 'spine_pelvis', x: 274, y: 250, description: 'Região glútea ou quadril posterior' },
-  { key: 'glúteo_quadril_direito_atrás', label: 'Glúteo / Quadril Direito', side: 'back', category: 'spine_pelvis', x: 326, y: 250, description: 'Região glútea ou quadril posterior' },
-  { key: 'coxa_esquerda_atrás', label: 'Coxa Esquerda Posterior', side: 'back', category: 'legs', x: 276, y: 300, description: 'Isquiotibiais' },
-  { key: 'coxa_direita_atrás', label: 'Coxa Direita Posterior', side: 'back', category: 'legs', x: 324, y: 300, description: 'Isquiotibiais' },
-  { key: 'joelho_esquerdo_atrás', label: 'Joelho Esquerdo Posterior', side: 'back', category: 'legs', x: 276, y: 350, description: 'Fossa poplítea' },
-  { key: 'joelho_direito_atrás', label: 'Joelho Direito Posterior', side: 'back', category: 'legs', x: 324, y: 350, description: 'Fossa poplítea' },
-  { key: 'panturrilha_esquerda_atrás', label: 'Panturrilha Esquerda', side: 'back', category: 'legs', x: 274, y: 400, description: 'Músculo gastrocnêmio' },
-  { key: 'panturrilha_direita_atrás', label: 'Panturrilha Direita', side: 'back', category: 'legs', x: 326, y: 400, description: 'Músculo gastrocnêmio' },
-  { key: 'calcanhar_pé_esquerdo_atrás', label: 'Calcanhar / Pé Esquerdo', side: 'back', category: 'legs', x: 270, y: 445, description: 'Tendão de Aquiles ou sola do pé' },
-  { key: 'calcanhar_pé_direito_atrás', label: 'Calcanhar / Pé Direito', side: 'back', category: 'legs', x: 330, y: 445, description: 'Tendão de Aquiles ou sola do pé' }
+const PAIN_QUALITIES = [
+  'Dolorimento',
+  'Pontada',
+  'Queimação',
+  'Pressão / Peso',
+  'Fisgada',
+  'Latejamento',
+  'Câimbra',
+  'Choque / Formigamento',
+  'Rigidez'
 ];
 
-export const PAIN_CHARACTERS = [
-  { key: 'queimacao', label: 'Queimação / Calor', icon: '🔥' },
-  { key: 'pontada', label: 'Pontada / Agulhada', icon: '⚡' },
-  { key: 'peso', label: 'Peso / Pressão', icon: '🪨' },
-  { key: 'pulsatil', label: 'Pulsátil / Latejante', icon: '💓' },
-  { key: 'choque', label: 'Choque / Dormência', icon: '🔌' },
-  { key: 'rigidez', label: 'Rigidez Muscular', icon: '🔒' }
+const PAIN_CHARACTERS = [
+  { key: 'queimacao', label: 'Queimação', icon: '🔥', description: 'Dor tipo queimação ou calor intenso, característica frequente de hipersensibilidade e sensibilização central.' },
+  { key: 'pontada', label: 'Pontada / agulhada', icon: '⚡', description: 'Dor penetrante e pontual tipo agulhada ou fisgada súbita.' },
+  { key: 'peso', label: 'Peso / pressão', icon: '🪨', description: 'Sensação pesada de aperto, carga ou esmagamento na musculatura ou articulação.' },
+  { key: 'pulsatil', label: 'Latejante', icon: '💓', description: 'Dor com sensação rítmica de pulsação ou batimento.' },
+  { key: 'choque', label: 'Choque / formigamento', icon: '🔌', description: 'Sensação de eletricidade, dormência ou formigamento por irritação nervosa.' },
+  { key: 'rigidez', label: 'Rigidez muscular', icon: '🔒', description: 'Travamento, tensão muscular aumentada e dificuldade para alongar o membro.' }
+];
+
+const BODY_REGIONS_LIST = [
+  { id: 'cabeca', label: 'Cabeça / face', side: 'front', asset: 'corpo-anterior', x: 240, y: 70 },
+  { id: 'pescoco_ant', label: 'Pescoço anterior', side: 'front', asset: 'corpo-anterior', x: 240, y: 140 },
+  { id: 'ombro_dir', label: 'Ombro direito', side: 'front', asset: 'corpo-anterior', x: 145, y: 226 },
+  { id: 'ombro_esq', label: 'Ombro esquerdo', side: 'front', asset: 'corpo-anterior', x: 365, y: 226 },
+  { id: 'torax', label: 'Tórax / peito', side: 'front', asset: 'corpo-anterior', x: 240, y: 260 },
+  { id: 'cotovelo_dir', label: 'Cotovelo direito', side: 'front', asset: 'corpo-anterior', x: 118, y: 378 },
+  { id: 'cotovelo_esq', label: 'Cotovelo esquerdo', side: 'front', asset: 'corpo-anterior', x: 392, y: 378 },
+  { id: 'abdomen', label: 'Abdômen', side: 'front', asset: 'corpo-anterior', x: 240, y: 400 },
+  { id: 'punho_dir', label: 'Punho direito', side: 'front', asset: 'corpo-anterior', x: 75, y: 498 },
+  { id: 'punho_esq', label: 'Punho esquerdo', side: 'front', asset: 'corpo-anterior', x: 424, y: 498 },
+  { id: 'quadril_dir', label: 'Quadril direito', side: 'front', asset: 'corpo-anterior', x: 190, y: 480 },
+  { id: 'quadril_esq', label: 'Quadril esquerdo', side: 'front', asset: 'corpo-anterior', x: 310, y: 480 },
+  { id: 'coxa_dir', label: 'Coxa direita', side: 'front', asset: 'corpo-anterior', x: 180, y: 580 },
+  { id: 'coxa_esq', label: 'Coxa esquerda', side: 'front', asset: 'corpo-anterior', x: 320, y: 580 },
+  { id: 'joelho_dir', label: 'Joelho direito', side: 'front', asset: 'corpo-anterior', x: 207, y: 642 },
+  { id: 'joelho_esq', label: 'Joelho esquerdo', side: 'front', asset: 'corpo-anterior', x: 303, y: 642 },
+  { id: 'perna_dir', label: 'Canela / perna direita', side: 'front', asset: 'corpo-anterior', x: 195, y: 780 },
+  { id: 'perna_esq', label: 'Canela / perna esquerda', side: 'front', asset: 'corpo-anterior', x: 305, y: 780 },
+  { id: 'pe_dir_ant', label: 'Pé direito', side: 'front', asset: 'corpo-anterior', x: 180, y: 920 },
+  { id: 'pe_esq_ant', label: 'Pé esquerdo', side: 'front', asset: 'corpo-anterior', x: 320, y: 920 },
+  // Posterior
+  { id: 'nuca', label: 'Nuca / occipital', side: 'back', asset: 'corpo-posterior', x: 280, y: 65 },
+  { id: 'cervical', label: 'Coluna cervical', side: 'back', asset: 'corpo-posterior', x: 280, y: 150 },
+  { id: 'escapula_dir', label: 'Escápula direita', side: 'back', asset: 'corpo-posterior', x: 375, y: 280 },
+  { id: 'escapula_esq', label: 'Escápula esquerda', side: 'back', asset: 'corpo-posterior', x: 185, y: 280 },
+  { id: 'dorso_toracico', label: 'Dorso / torácica', side: 'back', asset: 'corpo-posterior', x: 280, y: 320 },
+  { id: 'lombar', label: 'Coluna lombar', side: 'back', asset: 'corpo-posterior', x: 280, y: 470 },
+  { id: 'gluteo_dir', label: 'Glúteo direito', side: 'back', asset: 'corpo-posterior', x: 330, y: 620 },
+  { id: 'gluteo_esq', label: 'Glúteo esquerdo', side: 'back', asset: 'corpo-posterior', x: 230, y: 620 },
+  { id: 'coxa_dir_post', label: 'Coxa direita posterior', side: 'back', asset: 'corpo-posterior', x: 340, y: 730 },
+  { id: 'coxa_esq_post', label: 'Coxa esquerda posterior', side: 'back', asset: 'corpo-posterior', x: 220, y: 730 },
+  { id: 'poplitea_dir', label: 'Joelho direito posterior', side: 'back', asset: 'corpo-posterior', x: 330, y: 830 },
+  { id: 'poplitea_esq', label: 'Joelho esquerdo posterior', side: 'back', asset: 'corpo-posterior', x: 230, y: 830 },
+  { id: 'panturrilha_dir', label: 'Panturrilha direita', side: 'back', asset: 'corpo-posterior', x: 340, y: 920 },
+  { id: 'panturrilha_esq', label: 'Panturrilha esquerda', side: 'back', asset: 'corpo-posterior', x: 220, y: 920 },
+  { id: 'aquiles_dir', label: 'Tendão de Aquiles direito', side: 'back', asset: 'corpo-posterior', x: 345, y: 1040 },
+  { id: 'aquiles_esq', label: 'Tendão de Aquiles esquerdo', side: 'back', asset: 'corpo-posterior', x: 215, y: 1040 }
 ];
 
 export const BodyPainMap: React.FC<BodyPainMapProps> = ({ 
@@ -118,22 +143,45 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
   onUpdatePatientData,
   isEmbedded = false
 }) => {
-  // Selected date for visualization and editing
+  // Selected date
   const [selectedDate, setSelectedDate] = useState<string>(todayISO());
-  // Selected body region for interactive scoring
-  const [selectedRegionKey, setSelectedRegionKey] = useState<string | null>(null);
-  // View mode filter (all, front only, back only)
-  const [viewFilter, setViewFilter] = useState<'both' | 'front' | 'back'>('both');
-  // Safe in-app confirmation modal for clearing day's map
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  // Show AI silhouette calibration drawer
-  const [showIaCustomizer, setShowIaCustomizer] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [genSuccessMsg, setGenSuccessMsg] = useState<string | null>(null);
-  // Toast notification for instant saves
-  const [saveToast, setSaveToast] = useState<string | null>(null);
+  // Clinical instrument
+  const [instrument, setInstrument] = useState<ClinicalInstrument>('free');
+  // Visual scope ('body' | 'hand' | 'foot' | 'all')
+  const [scope, setScope] = useState<VisualScope>('body');
+  // Advanced tools mode ('point' | 'region' | 'radiation' | 'joint')
+  const [advMode, setAdvMode] = useState<AdvancedMode>('point');
+  // Radiation pending start point
+  const [pendingRadiation, setPendingRadiation] = useState<{ asset: string; x: number; y: number } | null>(null);
+  // Current region/marker selection
+  const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null);
+  const [selectedStructureId, setSelectedStructureId] = useState<string | null>(null);
+  // Radius for circular region (px)
+  const [regionRadius, setRegionRadius] = useState<number>(45);
+  // View mode filter ('both' | 'front' | 'back' | 'list')
+  const [viewFilter, setViewFilter] = useState<'both' | 'front' | 'back' | 'list'>('both');
+  // Status message
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [saveStatusState, setSaveStatusState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  // Clear confirmation
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  // Selected joint name from dropdown
+  const [jointDropdownName, setJointDropdownName] = useState<string>('Ombro');
+  // Preset proposal modal
+  const [presetDraft, setPresetDraft] = useState<{
+    key: string;
+    label: string;
+    description: string;
+    icon: string;
+    pain: number;
+    worstPain: number;
+    fatigue: number;
+    functionVal: number;
+    notesPrefix: string;
+    suggestedRegions: string[];
+  } | null>(null);
 
-  // Current log for selected date
+  // Active log
   const currentLog = useMemo(() => {
     return logs.find((l) => l.date === selectedDate) || null;
   }, [logs, selectedDate]);
@@ -143,33 +191,26 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
     return currentLog?.bodyPainMap || {};
   }, [currentLog]);
 
-  const activeRegion = useMemo(() => {
-    if (!selectedRegionKey) return null;
-    return ANATOMICAL_REGIONS.find((r) => r.key === selectedRegionKey) || null;
-  }, [selectedRegionKey]);
+  // Current advanced marks list
+  const currentMarks: AdvancedPainMark[] = useMemo(() => {
+    return currentLog?.advancedPainMarks || [];
+  }, [currentLog]);
 
-  // Trigger feedback toast
-  const triggerSaveToast = (msg: string) => {
-    setSaveToast(msg);
-    setTimeout(() => setSaveToast(null), 2500);
+  // Status message helper
+  const triggerStatus = (msg: string, state: 'saving' | 'saved' = 'saved') => {
+    setStatusMessage(msg);
+    setSaveStatusState(state);
+    if (state === 'saved') {
+      setTimeout(() => {
+        setStatusMessage((prev) => (prev === msg ? null : prev));
+        setSaveStatusState((prev) => (prev === 'saved' ? 'idle' : prev));
+      }, 3000);
+    }
   };
 
-  // Update specific pain point intensity
-  const handleUpdateRegionPain = (score: number) => {
-    if (!selectedRegionKey) return;
-    const updatedMap = { ...currentPainMap };
-    const regLabel = activeRegion?.label || selectedRegionKey;
-
-    if (score === 0) {
-      delete updatedMap[selectedRegionKey];
-      triggerSaveToast(`${regLabel}: Dor removida`);
-    } else {
-      updatedMap[selectedRegionKey] = score;
-      triggerSaveToast(`${regLabel}: Dor ${score}/10 registrada`);
-    }
-
-    // Base log construction
-    const baseLog: DailyLog = currentLog || {
+  // Base log creator
+  const getBaseLog = (): DailyLog => {
+    return currentLog || {
       date: selectedDate,
       pain: undefined,
       fatigue: undefined,
@@ -180,213 +221,501 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
       mood: undefined,
       notes: ''
     };
+  };
 
-    // Calculate auto pain scores if not manually set
-    const activeValues = Object.values(updatedMap);
-    let autoPain = baseLog.pain;
-    let autoWorst = baseLog.worstPain;
+  // Recalculate auto pain values
+  const recalculateAndSave = (updatedMap: Record<string, number>, updatedMarks?: AdvancedPainMark[]) => {
+    const base = getBaseLog();
+    const activeValues = Object.values(updatedMap).map(Number).filter((v) => !isNaN(v) && v > 0);
+    let autoPain = base.pain;
+    let autoWorst = base.worstPain;
 
     if (activeValues.length > 0) {
       const avg = Math.round(activeValues.reduce((sum, v) => sum + v, 0) / activeValues.length);
       const max = Math.max(...activeValues);
-      
-      if (baseLog.pain === undefined || baseLog.pain === null) {
-        autoPain = avg;
-      }
-      if (baseLog.worstPain === undefined || baseLog.worstPain === null || max > (baseLog.worstPain || 0)) {
-        autoWorst = max;
-      }
+      autoPain = avg;
+      autoWorst = max;
     }
 
     onSaveLog({
-      ...baseLog,
+      ...base,
       pain: autoPain,
       worstPain: autoWorst,
-      bodyPainMap: updatedMap
+      bodyPainMap: updatedMap,
+      ...(updatedMarks !== undefined ? { advancedPainMarks: updatedMarks } : {})
     });
   };
 
-  // Safe in-app clear
-  const handleConfirmClear = () => {
-    if (currentLog) {
-      onSaveLog({
-        ...currentLog,
-        bodyPainMap: {}
+  // Find yesterday's or previous day's log with pain points
+  const yesterdayLog = useMemo(() => {
+    const d = new Date(selectedDate + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    const yesterdayStr = d.toISOString().split('T')[0];
+
+    const exact = logs.find((l) => l.date === yesterdayStr && (
+      (l.advancedPainMarks && l.advancedPainMarks.length > 0) ||
+      (l.bodyPainMap && Object.values(l.bodyPainMap).some((v) => Number(v) > 0))
+    ));
+    if (exact) return exact;
+
+    const previousWithData = logs
+      .filter((l) => l.date < selectedDate && (
+        (l.advancedPainMarks && l.advancedPainMarks.length > 0) ||
+        (l.bodyPainMap && Object.values(l.bodyPainMap).some((v) => Number(v) > 0))
+      ))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    return previousWithData[0] || null;
+  }, [logs, selectedDate]);
+
+  const yesterdayPointsCount = useMemo(() => {
+    if (!yesterdayLog) return 0;
+    const marksCount = yesterdayLog.advancedPainMarks?.length || 0;
+    if (marksCount > 0) return marksCount;
+    return Object.values(yesterdayLog.bodyPainMap || {}).filter((v) => Number(v) > 0).length;
+  }, [yesterdayLog]);
+
+  // Handle repeating yesterday's pain markings with memory
+  const handleRepeatYesterday = () => {
+    if (!yesterdayLog) return;
+    triggerStatus('Carregando dores do dia anterior...', 'saving');
+
+    const base = getBaseLog();
+    let newMarks: AdvancedPainMark[] = [];
+    const newPainMap: Record<string, number> = { ...(yesterdayLog.bodyPainMap || {}) };
+
+    if (yesterdayLog.advancedPainMarks && yesterdayLog.advancedPainMarks.length > 0) {
+      newMarks = yesterdayLog.advancedPainMarks.map((m) => ({
+        ...m,
+        id: 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+        previousIntensity: m.intensity,
+        source: 'yesterday_clone',
+        createdAt: new Date().toISOString()
+      }));
+      newMarks.forEach((m) => {
+        newPainMap[m.id] = m.intensity;
       });
-      triggerSaveToast('Pontos de dor do dia limpos');
+    } else if (yesterdayLog.bodyPainMap) {
+      Object.entries(yesterdayLog.bodyPainMap).forEach(([key, val]) => {
+        const numVal = Number(val);
+        if (numVal > 0) {
+          const regionInfo = BODY_REGIONS_LIST.find((r) => r.id === key);
+          if (regionInfo) {
+            newMarks.push({
+              id: 'm_' + Date.now().toString(36) + '_' + key,
+              type: 'point',
+              asset: regionInfo.asset,
+              x: regionInfo.x,
+              y: regionInfo.y,
+              intensity: numVal,
+              previousIntensity: numVal,
+              side: regionInfo.side === 'front' ? 'frente' : 'costas',
+              quality: 'Dolorimento',
+              label: regionInfo.label,
+              source: 'yesterday_clone',
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+      });
     }
-    setShowClearConfirm(false);
-    setSelectedRegionKey(null);
+
+    onSaveLog({
+      ...base,
+      pain: yesterdayLog.pain ?? base.pain,
+      worstPain: yesterdayLog.worstPain ?? base.worstPain,
+      bodyPainMap: newPainMap,
+      advancedPainMarks: newMarks
+    });
+
+    setTimeout(() => {
+      triggerStatus(`✓ ${newMarks.length || Object.keys(newPainMap).length} ponto(s) do dia anterior importados! Ajuste melhora ou piora com os botões + e -.`, 'saved');
+    }, 250);
   };
 
-  // Toggle pain sensation characteristic
-  const handleTogglePainCharacter = (trait: string) => {
-    const baseLog: DailyLog = currentLog || {
-      date: selectedDate,
-      notes: ''
+  // Step intensity up or down by 1 (+/-)
+  const handleStepIntensity = (markId: string, delta: number) => {
+    const mark = currentMarks.find((m) => m.id === markId);
+    if (mark) {
+      const nextVal = Math.max(0, Math.min(10, mark.intensity + delta));
+      handleUpdateMarkIntensity(markId, nextVal);
+      return;
+    }
+    const currentVal = currentPainMap[markId] || 0;
+    const nextVal = Math.max(0, Math.min(10, currentVal + delta));
+    const updatedMap = { ...currentPainMap };
+    if (nextVal === 0) {
+      delete updatedMap[markId];
+    } else {
+      updatedMap[markId] = nextVal;
+    }
+    recalculateAndSave(updatedMap);
+  };
+
+  // Toggle WPI 19 region
+  const handleToggleWpiRegion = (regionId: string) => {
+    const reg = WPI19_REGIONS.find((r) => r.id === regionId);
+    if (!reg) return;
+
+    const updatedMap = { ...currentPainMap };
+    const currentScore = updatedMap[regionId] || 0;
+    const newScore = currentScore > 0 ? 0 : 5;
+
+    triggerStatus(`Atualizando ${reg.label}...`, 'saving');
+
+    if (newScore === 0) {
+      delete updatedMap[regionId];
+    } else {
+      updatedMap[regionId] = newScore;
+    }
+
+    setSelectedStructureId(regionId);
+    recalculateAndSave(updatedMap);
+
+    setTimeout(() => {
+      triggerStatus(newScore > 0 ? `✓ ${reg.label} marcado no WPI` : `✓ ${reg.label} desmarcado`, 'saved');
+    }, 200);
+  };
+
+  // Toggle DAS28 joint (dor / edema)
+  const handleToggleDas28Joint = (jointId: string, type: 'tender' | 'swollen' = 'tender') => {
+    const joint = DAS28_JOINTS.find((j) => j.id === jointId);
+    if (!joint) return;
+
+    const updatedMap = { ...currentPainMap };
+    const key = type === 'swollen' ? `${jointId}_swollen` : jointId;
+    const isCurrentlyActive = (updatedMap[key] || 0) > 0;
+    const newScore = isCurrentlyActive ? 0 : 5;
+
+    triggerStatus(`Atualizando ${joint.label}...`, 'saving');
+
+    if (newScore === 0) {
+      delete updatedMap[key];
+    } else {
+      updatedMap[key] = newScore;
+    }
+
+    setSelectedStructureId(jointId);
+    recalculateAndSave(updatedMap);
+
+    setTimeout(() => {
+      triggerStatus(
+        newScore > 0 
+          ? `✓ ${joint.label} marcado (${type === 'swollen' ? 'edema' : 'dor'})` 
+          : `✓ ${joint.label} desmarcado`, 
+        'saved'
+      );
+    }, 200);
+  };
+
+  // Click on anatomical silhouette in Free / Advanced mode
+  const handleSvgSilhouetteClick = (asset: string, event: React.MouseEvent<SVGSVGElement>) => {
+    const svg = event.currentTarget;
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const q = point.matrixTransform(ctm.inverse());
+    const mask = ATLAS_MASKS[asset];
+    if (!mask) return;
+
+    const x = Math.max(0, Math.min(mask.width, Math.round(q.x)));
+    const y = Math.max(0, Math.min(mask.height, Math.round(q.y)));
+
+    if (instrument === 'wpi19') {
+      // In WPI mode, clicks handled by regions
+      return;
+    }
+
+    if (advMode === 'radiation') {
+      if (!pendingRadiation) {
+        setPendingRadiation({ asset, x, y });
+        const originLabel = getAnatomicalLabelForCoord(asset, x, y);
+        triggerStatus(`Origem em "${originLabel}". Toque agora no destino da irradiação.`, 'saving');
+        return;
+      } else {
+        const markId = 'm_' + Date.now().toString(36);
+        const originLabel = getAnatomicalLabelForCoord(pendingRadiation.asset, pendingRadiation.x, pendingRadiation.y);
+        const destLabel = getAnatomicalLabelForCoord(asset, x, y);
+        const label = `Irradiação: ${originLabel} → ${destLabel}`;
+
+        const newMark: AdvancedPainMark = {
+          id: markId,
+          type: 'radiation',
+          asset: pendingRadiation.asset,
+          x: pendingRadiation.x,
+          y: pendingRadiation.y,
+          to: { asset, x, y },
+          intensity: 6,
+          side: originLabel.toLowerCase().includes('direito') || originLabel.toLowerCase().includes('direita') ? 'direita' : originLabel.toLowerCase().includes('esquerdo') || originLabel.toLowerCase().includes('esquerda') ? 'esquerda' : 'bilateral',
+          quality: 'Choque / Formigamento',
+          label,
+          createdAt: new Date().toISOString()
+        };
+        const nextMarks = [...currentMarks, newMark];
+        setPendingRadiation(null);
+        setSelectedMarkId(markId);
+        triggerStatus(`✓ ${label} registrada!`, 'saving');
+        
+        const updatedMap = { ...currentPainMap, [markId]: 6 };
+        recalculateAndSave(updatedMap, nextMarks);
+        setTimeout(() => triggerStatus('✓ Irradiação anatômica salva com sucesso!', 'saved'), 200);
+        return;
+      }
+    }
+
+    // Point, Region or Joint mode
+    const markId = 'm_' + Date.now().toString(36);
+    const anatomicalName = getAnatomicalLabelForCoord(asset, x, y);
+    const label = advMode === 'joint' 
+      ? `${jointDropdownName} · ${anatomicalName}` 
+      : advMode === 'region' 
+      ? `Área de dor (${regionRadius}px) · ${anatomicalName}` 
+      : anatomicalName;
+
+    const newMark: AdvancedPainMark = {
+      id: markId,
+      type: advMode,
+      asset,
+      x,
+      y,
+      radius: advMode === 'region' ? regionRadius : undefined,
+      intensity: 5,
+      side: anatomicalName.toLowerCase().includes('direito') || anatomicalName.toLowerCase().includes('direita') ? 'direita' : anatomicalName.toLowerCase().includes('esquerdo') || anatomicalName.toLowerCase().includes('esquerda') ? 'esquerda' : 'central',
+      quality: 'Dolorimento',
+      structure: advMode === 'joint' ? jointDropdownName : undefined,
+      label,
+      createdAt: new Date().toISOString()
     };
-    const currentTraits = baseLog.painCharacter || [];
+
+    const nextMarks = [...currentMarks, newMark];
+    setSelectedMarkId(markId);
+    const updatedMap = { ...currentPainMap, [markId]: 5 };
+    recalculateAndSave(updatedMap, nextMarks);
+
+    triggerStatus(`✓ ${label} registrado!`, 'saved');
+  };
+
+  // Delete a mark
+  const handleDeleteMark = (id: string) => {
+    const nextMarks = currentMarks.filter((m) => m.id !== id);
+    const updatedMap = { ...currentPainMap };
+    delete updatedMap[id];
+    setSelectedMarkId(null);
+    recalculateAndSave(updatedMap, nextMarks);
+    triggerStatus('✓ Marcação removida!', 'saved');
+  };
+
+  // Update mark intensity (0 to 10)
+  const handleUpdateMarkIntensity = (markId: string, intensity: number) => {
+    const mark = currentMarks.find((m) => m.id === markId);
+    const updatedMap = { ...currentPainMap };
+
+    if (intensity === 0) {
+      delete updatedMap[markId];
+    } else {
+      updatedMap[markId] = intensity;
+    }
+
+    let nextMarks = currentMarks;
+    if (mark) {
+      nextMarks = currentMarks.map((m) => m.id === markId ? { ...m, intensity } : m);
+    }
+
+    recalculateAndSave(updatedMap, nextMarks);
+    triggerStatus(`✓ Intensidade definida para ${intensity}/10`, 'saved');
+  };
+
+  // Safe clear
+  const handleClearAllRegions = () => {
+    if (currentLog) {
+      triggerStatus('Limpando registros do dia...', 'saving');
+      onSaveLog({
+        ...currentLog,
+        bodyPainMap: {},
+        advancedPainMarks: []
+      });
+      setTimeout(() => {
+        triggerStatus('✓ Todos os registros de dor deste dia foram limpos e salvos.', 'saved');
+      }, 250);
+    }
+    setConfirmClearOpen(false);
+    setSelectedMarkId(null);
+    setSelectedStructureId(null);
+  };
+
+  // Toggle pain characteristic
+  const handleTogglePainCharacter = (trait: string) => {
+    const base = getBaseLog();
+    const currentTraits = base.painCharacter || [];
     const nextTraits = currentTraits.includes(trait)
       ? currentTraits.filter((t) => t !== trait)
       : [...currentTraits, trait];
 
+    triggerStatus('Salvando característica de dor...', 'saving');
+
     onSaveLog({
-      ...baseLog,
+      ...base,
       painCharacter: nextTraits
     });
-    triggerSaveToast('Característica de dor atualizada');
+
+    setTimeout(() => {
+      triggerStatus('✓ Característica de dor atualizada e salva!', 'saved');
+    }, 250);
   };
 
-  // Quick Flare-up Check-in Presets
-  const handleApplyFlarePreset = (type: 'severe' | 'moderate' | 'fatigue_fog' | 'mild_stable') => {
-    const baseLog: DailyLog = currentLog || {
-      date: selectedDate,
-      notes: ''
-    };
+  // Preset Handlers
+  const handleOpenPresetProposal = (type: 'severe' | 'moderate' | 'fatigue_fog' | 'mild_stable' | 'pain_free') => {
+    const base = getBaseLog();
 
     if (type === 'severe') {
-      onSaveLog({
-        ...baseLog,
+      setPresetDraft({
+        key: 'severe',
+        label: 'Crise aguda / flare intenso',
+        description: 'Sugestão para episódios agudos de dor e exaustão física.',
+        icon: '🚨',
         pain: 8,
         worstPain: 9,
         fatigue: 8,
-        notes: (baseLog.notes ? baseLog.notes + '\n' : '') + '[Registro Rápido]: Crise Aguda / Flare Intenso.',
-        bodyPainMap: Object.keys(baseLog.bodyPainMap || {}).length > 0 ? baseLog.bodyPainMap : {
-          'costas_superior_atrás': 8,
-          'lombar_atrás': 8,
-          'pescoço_cervical_atrás': 7
-        }
+        functionVal: 3,
+        notesPrefix: '[Registro rápido]: Crise aguda / flare intenso.',
+        suggestedRegions: ['lombar', 'cervical', 'dorso_toracico']
       });
-      triggerSaveToast('Preset de Crise Aguda aplicado!');
     } else if (type === 'moderate') {
-      onSaveLog({
-        ...baseLog,
+      setPresetDraft({
+        key: 'moderate',
+        label: 'Dor moderada e sobrecarga',
+        description: 'Sugestão para dias de dor palpável com limitação funcional moderada.',
+        icon: '⚡',
         pain: 5,
         worstPain: 6,
         fatigue: 5,
-        notes: (baseLog.notes ? baseLog.notes + '\n' : '') + '[Registro Rápido]: Dor moderada e sobrecarga.'
+        functionVal: 5,
+        notesPrefix: '[Registro rápido]: Dor moderada e sobrecarga.',
+        suggestedRegions: []
       });
-      triggerSaveToast('Preset de Dor Moderada aplicado!');
     } else if (type === 'fatigue_fog') {
-      onSaveLog({
-        ...baseLog,
+      setPresetDraft({
+        key: 'fatigue_fog',
+        label: 'Fadiga severa & névoa mental',
+        description: 'Sugestão para exaustão extrema com lentidão de raciocínio.',
+        icon: '🧠',
+        pain: base.pain ?? 4,
+        worstPain: base.worstPain ?? 5,
         fatigue: 9,
-        brainFog: 8,
-        pain: baseLog.pain ?? 4,
-        worstPain: baseLog.worstPain ?? 5,
-        notes: (baseLog.notes ? baseLog.notes + '\n' : '') + '[Registro Rápido]: Exaustão severa e névoa mental.'
+        functionVal: 4,
+        notesPrefix: '[Registro rápido]: Exaustão severa e névoa mental.',
+        suggestedRegions: []
       });
-      triggerSaveToast('Preset de Fadiga e Névoa aplicado!');
     } else if (type === 'mild_stable') {
-      onSaveLog({
-        ...baseLog,
+      setPresetDraft({
+        key: 'mild_stable',
+        label: 'Dia estável (dor leve)',
+        description: 'Sugestão para dias calmos com boa tolerância e dor controlada.',
+        icon: '🛡️',
         pain: 2,
         worstPain: 3,
         fatigue: 3,
-        function: 7,
-        notes: (baseLog.notes ? baseLog.notes + '\n' : '') + '[Registro Rápido]: Dia estável com dor sob controle.'
+        functionVal: 7,
+        notesPrefix: '[Registro rápido]: Dia estável com dor controlada.',
+        suggestedRegions: []
       });
-      triggerSaveToast('Preset de Dia Estável aplicado!');
+    } else if (type === 'pain_free') {
+      setPresetDraft({
+        key: 'pain_free',
+        label: 'Sem dor (0/10)',
+        description: 'Sugestão para dias confortáveis, sem dores mapeadas.',
+        icon: '🟢',
+        pain: 0,
+        worstPain: 0,
+        fatigue: 1,
+        functionVal: 9,
+        notesPrefix: '[Registro rápido]: Sem dor hoje.',
+        suggestedRegions: []
+      });
     }
   };
 
-  // Calibrate silhouette from biometrics
-  const handleCalibrateBiotype = () => {
-    if (!onUpdatePatientData) return;
-    setIsGenerating(true);
-    const autoGender = patientData?.gender || 'F';
-    const h = patientData?.height || 170;
-    const w = patientData?.weight || 70;
-    const hM = h / 100;
-    const imc = w / (hM * hM);
-    const autoBiotype = imc < 18.5 ? 'slim' : imc >= 26 ? 'strong' : 'average';
+  const handleConfirmPresetDraft = () => {
+    if (!presetDraft) return;
+    const base = getBaseLog();
 
-    try {
-      onUpdatePatientData((profile) => {
-        profile.customSilhouetteBiotype = autoBiotype;
-        profile.customSilhouetteStyle = 'clinical';
-        profile.gender = autoGender;
+    let updatedMap = { ...(base.bodyPainMap || {}) };
+    let updatedMarks = currentMarks;
+
+    if (presetDraft.key === 'pain_free') {
+      updatedMap = {};
+      updatedMarks = [];
+    } else if (presetDraft.suggestedRegions.length > 0 && Object.keys(updatedMap).length === 0) {
+      presetDraft.suggestedRegions.forEach((regKey) => {
+        updatedMap[regKey] = 7;
       });
-      setGenSuccessMsg('Silhueta clínica calibrada com suas medidas de perfil (Gênero e Biótipo)!');
-      setTimeout(() => setGenSuccessMsg(null), 5000);
-    } finally {
-      setIsGenerating(false);
-      setShowIaCustomizer(false);
+      if (presetDraft.suggestedRegions.includes('lombar')) {
+        updatedMap['lombar'] = 8;
+      }
     }
-  };
 
-  // Restore silhouette
-  const handleRestoreDefaultSilhouette = () => {
-    if (!onUpdatePatientData) return;
-    onUpdatePatientData((profile) => {
-      delete profile.customSilhouetteSvg;
-      delete profile.customSilhouetteBiotype;
-      delete profile.customSilhouetteStyle;
+    triggerStatus(`Salvando ${presetDraft.label}...`, 'saving');
+
+    onSaveLog({
+      ...base,
+      pain: presetDraft.pain,
+      worstPain: presetDraft.worstPain,
+      fatigue: presetDraft.fatigue,
+      function: presetDraft.functionVal,
+      bodyPainMap: updatedMap,
+      advancedPainMarks: updatedMarks,
+      notes: (base.notes ? base.notes + '\n' : '') + presetDraft.notesPrefix
     });
-    setGenSuccessMsg('Silhueta restaurada para o padrão clínico!');
-    setTimeout(() => setGenSuccessMsg(null), 3000);
+
+    setTimeout(() => {
+      triggerStatus(`✓ ${presetDraft.label} registrado e salvo com sucesso!`, 'saved');
+    }, 250);
+    setPresetDraft(null);
   };
+
+  // Real-time WPI-19 score
+  const wpiScore = useMemo(() => {
+    let score = 0;
+    WPI19_REGIONS.forEach((region) => {
+      if ((currentPainMap[region.id] || 0) > 0) {
+        score++;
+      }
+    });
+    return score;
+  }, [currentPainMap]);
+
+  // Real-time DAS28 tender joint count (0 to 28)
+  const das28Count = useMemo(() => {
+    let count = 0;
+    DAS28_JOINTS.forEach((joint) => {
+      if ((currentPainMap[joint.id] || 0) > 0) {
+        count++;
+      }
+    });
+    return count;
+  }, [currentPainMap]);
+
+  // Real-time DAS28 swollen joint count (0 to 28)
+  const das28SwollenCount = useMemo(() => {
+    let count = 0;
+    DAS28_JOINTS.forEach((joint) => {
+      if ((currentPainMap[`${joint.id}_swollen`] || 0) > 0) {
+        count++;
+      }
+    });
+    return count;
+  }, [currentPainMap]);
 
   // Stats for the currently selected day
   const currentDayStats = useMemo(() => {
-    const entries = Object.entries(currentPainMap);
+    const entries = Object.entries(currentPainMap).filter(([, v]) => Number(v) > 0);
     const count = entries.length;
-    const avg = count > 0 ? (entries.reduce((sum, [, v]) => sum + v, 0) / count).toFixed(1) : '0.0';
-    
-    let worstName = 'Nenhum';
-    let worstVal = 0;
-    let frontCount = 0;
-    let backCount = 0;
-
-    entries.forEach(([key, val]) => {
-      const reg = ANATOMICAL_REGIONS.find((r) => r.key === key);
-      if (reg) {
-        if (reg.side === 'front') frontCount++;
-        else backCount++;
-        if (val > worstVal) {
-          worstVal = val;
-          worstName = `${reg.label} (${val}/10)`;
-        }
-      }
-    });
-
-    return { count, avg, worstName, worstVal, frontCount, backCount };
+    const avg = count > 0 ? (entries.reduce((sum, [, v]) => sum + Number(v), 0) / count).toFixed(1) : '0.0';
+    const worstVal = entries.length > 0 ? Math.max(...entries.map(([, v]) => Number(v))) : 0;
+    return { count, avg, worstVal };
   }, [currentPainMap]);
-
-  // Longitudinal hotspot stats (last 30 days)
-  const hotspotStats = useMemo(() => {
-    const thirtyDaysLogs = logs.slice(-30);
-    const frequencyMap: Record<string, { count: number; totalIntensity: number; label: string }> = {};
-
-    thirtyDaysLogs.forEach((l) => {
-      if (l.bodyPainMap) {
-        Object.entries(l.bodyPainMap).forEach(([key, score]) => {
-          const numScore = Number(score);
-          if (numScore > 0) {
-            const reg = ANATOMICAL_REGIONS.find((r) => r.key === key);
-            const label = reg?.label || key;
-            if (!frequencyMap[key]) {
-              frequencyMap[key] = { count: 0, totalIntensity: 0, label };
-            }
-            frequencyMap[key].count += 1;
-            frequencyMap[key].totalIntensity += numScore;
-          }
-        });
-      }
-    });
-
-    const sorted = Object.entries(frequencyMap)
-      .map(([key, data]) => ({
-        key,
-        label: data.label,
-        count: data.count,
-        avgIntensity: (data.totalIntensity / data.count).toFixed(1),
-        percentage: Math.round((data.count / Math.max(1, thirtyDaysLogs.length)) * 100)
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    return sorted.slice(0, 5);
-  }, [logs]);
 
   // Recent 14-day history timeline entries
   const recentDaysList = useMemo(() => {
@@ -398,8 +727,8 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
       const iso = d.toISOString().split('T')[0];
       const log = logs.find((l) => l.date === iso);
       const painMap = log?.bodyPainMap || {};
-      const painValues = Object.values(painMap).map(Number).filter((v) => !isNaN(v));
-      const painCount = painValues.filter((v) => v > 0).length;
+      const painValues = Object.values(painMap).map(Number).filter((v) => !isNaN(v) && v > 0);
+      const painCount = painValues.length;
       const maxPain = painValues.length > 0 ? Math.max(...painValues) : 0;
       
       const dayLabel = i === 0 ? 'Hoje' : i === 1 ? 'Ontem' : fmtDate(iso, 's');
@@ -414,90 +743,617 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
     return dates;
   }, [logs]);
 
+  // Figures to render based on instrument and scope
+  const activeFigures: string[] = useMemo(() => {
+    if (instrument === 'wpi19') {
+      if (viewFilter === 'front') return ['wpi-anterior'];
+      if (viewFilter === 'back') return ['wpi-posterior'];
+      return ['wpi-anterior', 'wpi-posterior'];
+    }
+    if (scope === 'hand') {
+      return ['mao-direita', 'mao-esquerda'];
+    }
+    if (scope === 'foot') {
+      return ['pe-direito', 'pe-esquerdo'];
+    }
+    if (scope === 'all') {
+      return ['corpo-anterior', 'corpo-posterior', 'mao-direita', 'mao-esquerda', 'pe-direito', 'pe-esquerdo'];
+    }
+    if (viewFilter === 'front') return ['corpo-anterior'];
+    if (viewFilter === 'back') return ['corpo-posterior'];
+    return ['corpo-anterior', 'corpo-posterior'];
+  }, [instrument, scope, viewFilter]);
+
+  // Current selected mark details
+  const selectedMark = useMemo(() => {
+    if (!selectedMarkId) return null;
+    return currentMarks.find((m) => m.id === selectedMarkId) || null;
+  }, [selectedMarkId, currentMarks]);
+
   return (
-    <div className={`space-y-5 ${isEmbedded ? '' : 'p-2'}`} id="pain-history-silhouette">
-      {/* HEADER: Title & Quick Date Scrubber */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-500 inline-block">
-                <Activity className="w-4 h-4" />
-              </span>
-              <h3 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                Silhueta Anatômica & Registro de Dor
-                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-200 dark:border-rose-900/60 uppercase tracking-wider">
-                  Mapa Corporal
+    <div className="space-y-4" id="pain-history-silhouette">
+      
+      {/* 1. TOP HERO: REGISTRO RÁPIDO DO ESTADO (1 TOQUE) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
+              <Zap className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                Registro rápido de estado
+                <InfoTooltip
+                  title="Atalhos clínicos de estado"
+                  content="Presets clínicos de 1 toque projetados para momentos em que você está com dor intensa, fadiga ou sem tempo para preenchimento minucioso. Ao selecionar, um modal de confirmação permite ajustar os valores antes de salvar."
+                />
+                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2.5 py-0.5 rounded-full border border-teal-200 dark:border-teal-800">
+                  {selectedDate === todayISO() ? 'Hoje' : fmtDate(selectedDate, 's')}
                 </span>
               </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Toque em uma opção para registrar seu estado imediato em 1 segundo.
+              </p>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Selecione áreas no corpo para registrar a intensidade da dor de hoje ou navegue nos dias anteriores para ver o histórico anatômico.
-            </p>
           </div>
 
-          {/* Quick Date Control */}
-          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-            <button
-              type="button"
-              onClick={() => {
-                const d = new Date(selectedDate);
-                d.setDate(d.getDate() - 1);
-                setSelectedDate(d.toISOString().split('T')[0]);
-              }}
-              className="p-1.5 border border-slate-200 dark:border-slate-800 hover:border-teal-400 rounded-xl text-slate-500 cursor-pointer transition-colors"
-              title="Dia Anterior"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <input
-              type="date"
-              value={selectedDate}
-              max={todayISO()}
-              onChange={(e) => {
-                if (e.target.value) setSelectedDate(e.target.value);
-              }}
-              className="p-1.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl focus:outline-none focus:border-teal-500 cursor-pointer"
-            />
-
-            <button
-              type="button"
-              disabled={selectedDate === todayISO()}
-              onClick={() => {
-                const d = new Date(selectedDate);
-                d.setDate(d.getDate() + 1);
-                setSelectedDate(d.toISOString().split('T')[0]);
-              }}
-              className="p-1.5 border border-slate-200 dark:border-slate-800 hover:border-teal-400 rounded-xl text-slate-500 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Próximo Dia"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
-            {selectedDate !== todayISO() && (
-              <button
-                type="button"
-                onClick={() => setSelectedDate(todayISO())}
-                className="px-2.5 py-1.5 text-[11px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-xl hover:bg-teal-100 transition-colors cursor-pointer"
-              >
-                Voltar para Hoje
-              </button>
+          {/* Feedback status */}
+          <div className="h-6 flex items-center">
+            {statusMessage ? (
+              <span className={`text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1 rounded-lg border animate-in fade-in ${
+                saveStatusState === 'saving'
+                  ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800'
+                  : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800'
+              }`}>
+                {saveStatusState === 'saving' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                )}
+                {statusMessage}
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                Dor atual: <strong className="text-slate-700 dark:text-slate-300 font-bold">{currentLog?.pain != null ? `${currentLog.pain}/10` : 'Pendente'}</strong>
+              </span>
             )}
           </div>
         </div>
 
-        {/* 14-DAY TIMELINE SCRUBBER: Visual interactive strip */}
+        {/* 5 Quick State Buttons */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <Tooltip title="Crise aguda (dor 8+, fadiga 8)" content="Configura dor forte, exaustão física e rigidez para dias de crise severa. Permite ajuste fino antes de salvar." position="bottom">
+            <button
+              type="button"
+              onClick={() => handleOpenPresetProposal('severe')}
+              className={`w-full p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                currentLog?.pain != null && currentLog.pain >= 8
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 ring-2 ring-rose-500/30'
+                  : 'bg-slate-50 hover:bg-rose-50/50 dark:bg-slate-800/60 dark:hover:bg-rose-950/20 border-slate-200/80 dark:border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-rose-700 dark:text-rose-400">Crise aguda</span>
+                <span className="text-sm">🚨</span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Dor 8+, fadiga alta</p>
+            </button>
+          </Tooltip>
+
+          <Tooltip title="Dor moderada (dor 5, fadiga 5)" content="Dia com incômodo moderado persistente que exige pausas e reduz a velocidade das atividades cotidianas." position="bottom">
+            <button
+              type="button"
+              onClick={() => handleOpenPresetProposal('moderate')}
+              className={`w-full p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                currentLog?.pain != null && currentLog.pain >= 4 && currentLog.pain <= 7
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 ring-2 ring-amber-500/30'
+                  : 'bg-slate-50 hover:bg-amber-50/50 dark:bg-slate-800/60 dark:hover:bg-amber-950/20 border-slate-200/80 dark:border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-400">Dor moderada</span>
+                <span className="text-sm">⚡</span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Dor 5/10, limitação</p>
+            </button>
+          </Tooltip>
+
+          <Tooltip title="Fadiga & névoa mental (fog)" content="Exaustão profunda física ou mental, lentidão no raciocínio e falta de energia mesmo com dor relativamente baixa." position="bottom">
+            <button
+              type="button"
+              onClick={() => handleOpenPresetProposal('fatigue_fog')}
+              className={`w-full p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                currentLog?.fatigue != null && currentLog.fatigue >= 8
+                  ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 ring-2 ring-purple-500/30'
+                  : 'bg-slate-50 hover:bg-purple-50/50 dark:bg-slate-800/60 dark:hover:bg-purple-950/20 border-slate-200/80 dark:border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-purple-700 dark:text-purple-400">Fadiga & fog</span>
+                <span className="text-sm">🧠</span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Névoa e exaustão</p>
+            </button>
+          </Tooltip>
+
+          <Tooltip title="Dia estável (dor 2, boa função)" content="Sintomas leves, sob controle e sem impacto relevante nas suas atividades diárias." position="bottom">
+            <button
+              type="button"
+              onClick={() => handleOpenPresetProposal('mild_stable')}
+              className={`w-full p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                currentLog?.pain != null && currentLog.pain >= 1 && currentLog.pain <= 3
+                  ? 'bg-teal-50 dark:bg-teal-950/40 border-teal-500 ring-2 ring-teal-500/30'
+                  : 'bg-slate-50 hover:bg-teal-50/50 dark:bg-slate-800/60 dark:hover:bg-teal-950/20 border-slate-200/80 dark:border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-teal-700 dark:text-teal-400">Dia estável</span>
+                <span className="text-sm">🛡️</span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Dor leve 2/10</p>
+            </button>
+          </Tooltip>
+
+          <Tooltip title="Sem dor (0/10)" content="Ausência completa de dor e limitação física. Dia confortável e produtivo." position="bottom" className="col-span-2 sm:col-span-1">
+            <button
+              type="button"
+              onClick={() => handleOpenPresetProposal('pain_free')}
+              className={`w-full p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                currentLog?.pain === 0
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/30'
+                  : 'bg-slate-50 hover:bg-emerald-50/50 dark:bg-slate-800/60 dark:hover:bg-emerald-950/20 border-slate-200/80 dark:border-slate-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Sem dor</span>
+                <span className="text-sm">🟢</span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">0/10, dia bom</p>
+            </button>
+          </Tooltip>
+        </div>
+      </div>
+
+      {/* 2. ATLAS CLÍNICO NATHAN V5 CARD */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-4">
+        
+        {/* Navigation & Clinical Schema Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-3.5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-rose-500" />
+                Atlas anatômico de dor
+              </h3>
+              <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
+                Atlas Nathan v5 Integrado
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Mapeamento de dor com arte clínica original neutralizada, regiões WPI-19 e articulações DAS28.
+            </p>
+          </div>
+
+          {/* Date Selector */}
+          <div className="flex items-center gap-2 self-start lg:self-center">
+            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() - 1);
+                  setSelectedDate(d.toISOString().split('T')[0]);
+                }}
+                className="p-1 hover:text-teal-500 text-slate-400 cursor-pointer"
+                title="Dia anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <input
+                type="date"
+                value={selectedDate}
+                max={todayISO()}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-transparent focus:outline-none cursor-pointer"
+              />
+              <button
+                type="button"
+                disabled={selectedDate === todayISO()}
+                onClick={() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() + 1);
+                  setSelectedDate(d.toISOString().split('T')[0]);
+                }}
+                className="p-1 hover:text-teal-500 text-slate-400 disabled:opacity-30 cursor-pointer"
+                title="Próximo dia"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* CLINICAL INSTRUMENT SELECTOR TABS */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-slate-50 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <Tooltip title="Esquema clínico: dor livre" content="Mapeamento corporal global completo (0 a 10) sem restrição de critérios para registro integral de sintomas.">
+              <button
+                type="button"
+                onClick={() => {
+                  setInstrument('free');
+                  if (scope !== 'body') setScope('body');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  instrument === 'free'
+                    ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-2xs border border-teal-200/60 dark:border-teal-900'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-teal-500" />
+                Dor livre (geral)
+              </button>
+            </Tooltip>
+
+            <Tooltip title="Esquema clínico: WPI-19 (fibromialgia)" content="19 regiões padronizadas do Colégio Americano de Reumatologia (ACR) com cálculo em tempo real do índice WPI (0 a 19).">
+              <button
+                type="button"
+                onClick={() => {
+                  setInstrument('wpi19');
+                  setScope('body');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  instrument === 'wpi19'
+                    ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-2xs border border-purple-200/60 dark:border-purple-900'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
+                WPI · 19 regiões
+                {wpiScore > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                    {wpiScore}/19
+                  </span>
+                )}
+              </button>
+            </Tooltip>
+
+            <Tooltip title="Esquema clínico: DAS28 (artrite reumatóide)" content="28 articulações clássicas avaliadas na artrite reumatóide: ombros, cotovelos, punhos, joelhos, 10 MCFs e 10 IFPs.">
+              <button
+                type="button"
+                onClick={() => {
+                  setInstrument('das28');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  instrument === 'das28'
+                    ? 'bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300 shadow-2xs border border-rose-200/60 dark:border-rose-900'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                <Stethoscope className="w-3.5 h-3.5 text-rose-500" />
+                DAS28 · 28 juntas
+                {das28Count > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                    {das28Count}/28
+                  </span>
+                )}
+              </button>
+            </Tooltip>
+
+            <Tooltip title="Esquema clínico: artrite psoriásica & enteses" content="Vista com articulações periféricas, enteses (Aquiles, fáscia plantar) e MTFs dos pés.">
+              <button
+                type="button"
+                onClick={() => {
+                  setInstrument('psa');
+                  setScope('foot');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  instrument === 'psa'
+                    ? 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300 shadow-2xs border border-amber-200/60 dark:border-amber-900'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                🦴 PsA & enteses
+              </button>
+            </Tooltip>
+
+            <Tooltip title="Mapa de dor avançado (v5)" content="Instrumentos avançados: ponto, área circular translúcida, linha de irradiação com seta e articulação declarada.">
+              <button
+                type="button"
+                onClick={() => {
+                  setInstrument('advanced');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  instrument === 'advanced'
+                    ? 'bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-300 shadow-2xs border border-sky-200/60 dark:border-sky-900'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                ✨ Mapa avançado
+              </button>
+            </Tooltip>
+          </div>
+
+          {/* Scope Switcher */}
+          <div className="flex items-center gap-1 self-end sm:self-center">
+            {instrument !== 'wpi19' && (
+              <div className="inline-flex bg-slate-200/70 dark:bg-slate-850 p-0.5 rounded-xl text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setScope('body')}
+                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
+                    scope === 'body'
+                      ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Corpo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope('hand')}
+                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
+                    scope === 'hand'
+                      ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Mãos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope('foot')}
+                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
+                    scope === 'foot'
+                      ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Pés
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope('all')}
+                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
+                    scope === 'all'
+                      ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Todas
+                </button>
+              </div>
+            )}
+            <Tooltip title="Modo lista acessível" content="Exibe todas as regiões em formato de lista textual para acessibilidade por teclado ou leitor de tela.">
+              <button
+                type="button"
+                onClick={() => setViewFilter(viewFilter === 'list' ? 'both' : 'list')}
+                className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                  viewFilter === 'list'
+                    ? 'bg-teal-50 text-teal-600 border-teal-300 dark:bg-teal-950 dark:text-teal-300'
+                    : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* TOOL SUB-BAR (AVAILABLE IN FREE AND ADVANCED MODES) */}
+        {(instrument === 'free' || instrument === 'advanced') && (
+          <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 bg-sky-50/70 dark:bg-sky-950/20 rounded-2xl border border-sky-200/70 dark:border-sky-900/40 text-xs w-full max-w-full">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-sky-900 dark:text-sky-200 text-[11px]">Ferramenta:</span>
+              <button
+                type="button"
+                onClick={() => { setAdvMode('point'); setPendingRadiation(null); }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                  advMode === 'point'
+                    ? 'bg-sky-600 text-white shadow-2xs'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-sky-300'
+                }`}
+              >
+                ● Ponto de dor
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAdvMode('region'); setPendingRadiation(null); }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                  advMode === 'region'
+                    ? 'bg-sky-600 text-white shadow-2xs'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-sky-300'
+                }`}
+              >
+                ◯ Área circular
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAdvMode('radiation'); setPendingRadiation(null); }}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 text-xs ${
+                  advMode === 'radiation'
+                    ? 'bg-amber-600 text-white shadow-2xs ring-2 ring-amber-300/40'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-amber-300'
+                }`}
+              >
+                ➔ Irradiação anatômica
+              </button>
+              {instrument === 'advanced' && (
+                <button
+                  type="button"
+                  onClick={() => { setAdvMode('joint'); setPendingRadiation(null); }}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                    advMode === 'joint'
+                      ? 'bg-sky-600 text-white shadow-2xs'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  🦴 Articular
+                </button>
+              )}
+            </div>
+
+            {/* Sub-controls depending on tool */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {advMode === 'region' && (
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-500 font-bold">Raio da área: {regionRadius}px</span>
+                  <input
+                    type="range"
+                    min="15"
+                    max="90"
+                    value={regionRadius}
+                    onChange={(e) => setRegionRadius(Number(e.target.value))}
+                    className="w-20 accent-sky-600 cursor-pointer"
+                  />
+                </div>
+              )}
+              {advMode === 'joint' && (
+                <select
+                  value={jointDropdownName}
+                  onChange={(e) => setJointDropdownName(e.target.value)}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200"
+                >
+                  {scope === 'hand' ? (
+                    <>
+                      <option value="Punho">Punho</option>
+                      <option value="MCF 1">MCF 1 (Polegar)</option>
+                      <option value="MCF 2">MCF 2 (Indicador)</option>
+                      <option value="MCF 3">MCF 3 (Médio)</option>
+                      <option value="MCF 4">MCF 4 (Anelar)</option>
+                      <option value="MCF 5">MCF 5 (Mínimo)</option>
+                      <option value="IFP 1">IFP 1</option>
+                      <option value="IFP 2">IFP 2</option>
+                      <option value="IFP 3">IFP 3</option>
+                      <option value="IFP 4">IFP 4</option>
+                      <option value="IFP 5">IFP 5</option>
+                      <option value="IFD 2">IFD 2</option>
+                      <option value="IFD 3">IFD 3</option>
+                      <option value="IFD 4">IFD 4</option>
+                      <option value="IFD 5">IFD 5</option>
+                    </>
+                  ) : scope === 'foot' ? (
+                    <>
+                      <option value="Tornozelo">Tornozelo</option>
+                      <option value="Tendão de Aquiles">Tendão de Aquiles</option>
+                      <option value="Fáscia Plantar">Fáscia Plantar</option>
+                      <option value="MTF 1">MTF 1 (Hálux)</option>
+                      <option value="MTF 2">MTF 2</option>
+                      <option value="MTF 3">MTF 3</option>
+                      <option value="MTF 4">MTF 4</option>
+                      <option value="MTF 5">MTF 5</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="ATM">ATM (Mandíbula)</option>
+                      <option value="Ombro">Ombro</option>
+                      <option value="Cotovelo">Cotovelo</option>
+                      <option value="Punho">Punho</option>
+                      <option value="Coluna cervical">Coluna cervical</option>
+                      <option value="Coluna torácica">Coluna torácica</option>
+                      <option value="Coluna lombar">Coluna lombar</option>
+                      <option value="Sacroilíaca">Sacroilíaca</option>
+                      <option value="Quadril">Quadril</option>
+                      <option value="Joelho">Joelho</option>
+                      <option value="Tornozelo">Tornozelo</option>
+                    </>
+                  )}
+                </select>
+              )}
+              {advMode === 'radiation' && (
+                <div className="flex items-center gap-2">
+                  {pendingRadiation ? (
+                    <div className="flex items-center gap-1.5 bg-amber-100 dark:bg-amber-950/70 px-2.5 py-1 rounded-xl border border-amber-300 dark:border-amber-800 text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
+                      <span>Origem marcada ({getAnatomicalLabelForCoord(pendingRadiation.asset, pendingRadiation.x, pendingRadiation.y)}). Toque no destino anatômico.</span>
+                      <button
+                        type="button"
+                        onClick={() => setPendingRadiation(null)}
+                        className="ml-1 text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer text-[10px]"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-amber-800 dark:text-amber-300 font-semibold">
+                      Toque na origem da dor e depois no destino (a linha seguirá o trajeto anatômico).
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* CLINICAL SUMMARY PILL STRIP */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Pontos ativos</span>
+            <span className="text-sm font-black text-rose-600 dark:text-rose-400">{currentDayStats.count}</span>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Pico / Pior dor</span>
+            <span className="text-sm font-black text-slate-800 dark:text-slate-100">
+              {currentDayStats.worstVal > 0 ? `${currentDayStats.worstVal}/10` : '0/10'}
+            </span>
+          </div>
+
+          <div className="bg-purple-50/60 dark:bg-purple-950/20 p-2.5 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-purple-700 dark:text-purple-300 font-bold uppercase">Escore WPI</span>
+              <InfoTooltip
+                title="Escore WPI (fibromialgia)"
+                content="Widespread Pain Index: pontua 19 regiões padronizadas do ACR. Escore ≥ 7 preenche o critério de dor difusa para fibromialgia."
+              />
+            </div>
+            <div className="text-right">
+              <span className={`text-sm font-black ${wpiScore >= 7 ? 'text-purple-700 dark:text-purple-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                {wpiScore}/19
+              </span>
+              <span className="text-[9px] block text-purple-600 dark:text-purple-400 font-semibold">
+                {wpiScore >= 7 ? 'Critério dor difusa' : 'Dor focal/moderada'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-rose-50/60 dark:bg-rose-950/20 p-2.5 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-rose-700 dark:text-rose-300 font-bold uppercase">DAS28 (NAD)</span>
+              <InfoTooltip
+                title="Escore DAS28 (artrite reumatóide)"
+                content="Número de Articulações Dolorosas (NAD de 0 a 28) em ombros, cotovelos, punhos, joelhos, MCFs e IFPs."
+              />
+            </div>
+            <div className="text-right">
+              <span className={`text-sm font-black ${das28Count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                {das28Count}/28
+              </span>
+              <span className="text-[9px] block text-rose-600 dark:text-rose-400 font-semibold">
+                {das28Count >= 10 ? 'Alta atividade' : das28Count >= 4 ? 'Moderada' : das28Count > 0 ? 'Leve' : 'Remissão'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 14-Day Timeline Strip */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
             <span className="flex items-center gap-1.5">
               <History className="w-3.5 h-3.5 text-teal-500" />
-              Histórico Recente (Toque na data para ver o mapa daquele dia):
+              Histórico recente (Selecione um dia para visualizar no corpo):
             </span>
-            <span>{selectedDate === todayISO() ? 'Exibindo: Hoje' : `Exibindo: ${fmtDate(selectedDate, 's')}`}</span>
+            {selectedDate !== todayISO() && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayISO())}
+                className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+              >
+                Voltar para hoje
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar">
             {recentDaysList.map((day) => {
               const isSelected = day.date === selectedDate;
               const hasPain = day.painCount > 0;
@@ -506,7 +1362,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                   key={day.date}
                   type="button"
                   onClick={() => setSelectedDate(day.date)}
-                  className={`flex-shrink-0 flex flex-col items-center justify-between p-2 rounded-2xl min-w-[56px] border transition-all cursor-pointer ${
+                  className={`flex-shrink-0 flex flex-col items-center justify-between p-2 rounded-2xl min-w-[54px] border transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-teal-500 text-white border-teal-600 shadow-sm scale-105'
                       : hasPain
@@ -518,13 +1374,12 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                     {day.label}
                   </span>
                   
-                  {/* Dot / Pain Indicator */}
                   <div className="my-1 flex items-center justify-center">
                     {hasPain ? (
                       <span
                         className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-black ${
                           isSelected
-                            ? 'bg-white text-teal-700 shadow-xs'
+                            ? 'bg-white text-teal-700'
                             : day.maxPain >= 7
                             ? 'bg-rose-500 text-white animate-pulse'
                             : day.maxPain >= 4
@@ -535,11 +1390,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                         {day.painCount}
                       </span>
                     ) : (
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          isSelected ? 'bg-teal-200' : 'bg-slate-300 dark:bg-slate-600'
-                        }`}
-                      />
+                      <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-teal-200' : 'bg-slate-300 dark:bg-slate-600'}`} />
                     )}
                   </div>
 
@@ -552,756 +1403,946 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
           </div>
         </div>
 
-        {/* FEEDBACK TOAST */}
-        {saveToast && (
-          <div className="bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-md flex items-center gap-2 animate-in fade-in duration-150">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{saveToast}</span>
+        {/* WORKSPACE: VISUAL CANVAS OR LIST MODE */}
+        {viewFilter === 'list' ? (
+          /* ================= ACCESSIBLE ANATOMICAL LIST MODE ================= */
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl space-y-4">
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-2">
+              <h4 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <List className="w-5 h-5 text-teal-500" />
+                Lista anatômica acessível
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              {BODY_REGIONS_LIST.map((reg) => {
+                const score = currentPainMap[reg.id] || 0;
+                return (
+                  <div
+                    key={reg.id}
+                    className="p-3 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200/70 dark:border-slate-800 flex items-center justify-between"
+                  >
+                    <div>
+                      <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">
+                        {reg.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {reg.side === 'front' ? 'Anterior' : 'Posterior'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {[0, 2, 5, 8, 10].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => {
+                            const updatedMap = { ...currentPainMap };
+                            if (val === 0) delete updatedMap[reg.id];
+                            else updatedMap[reg.id] = val;
+                            recalculateAndSave(updatedMap);
+                          }}
+                          className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                            score === val
+                              ? val === 0
+                                ? 'bg-slate-600 text-white'
+                                : val <= 3
+                                ? 'bg-amber-500 text-white'
+                                : val <= 6
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-rose-600 text-white'
+                              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          {val === 0 ? 'Sem dor' : val}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* ================= VISUAL FIGURES RENDERER ================= */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start pt-1 w-full max-w-full">
+            
+            {/* THE VISUAL CANVAS (7 cols) */}
+            <div className="lg:col-span-7 bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 p-3 sm:p-4 rounded-3xl flex flex-col items-center relative select-none w-full max-w-full overflow-x-hidden">
+              
+              {/* UNIFIED TOP TOOLBAR: View switch + Repeat Yesterday + Draw tools + Clear */}
+              <div className="w-full flex flex-col gap-2.5 mb-3 bg-white/70 dark:bg-slate-900/60 p-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-800/80">
+                {/* Line 1: View Filter + Yesterday Memory */}
+                <div className="w-full flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-850 p-1 rounded-2xl text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setViewFilter('front')}
+                      className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                        viewFilter === 'front'
+                          ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-2xs font-bold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Frente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewFilter('back')}
+                      className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                        viewFilter === 'back'
+                          ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-2xs font-bold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Costas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewFilter('both')}
+                      className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                        viewFilter === 'both'
+                          ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-2xs font-bold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Ambas (lado a lado)
+                    </button>
+                  </div>
+
+                  {/* Repeat Yesterday Memory Button */}
+                  {yesterdayLog && (
+                    <button
+                      type="button"
+                      onClick={handleRepeatYesterday}
+                      className="px-3 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-500/15 via-teal-500/25 to-emerald-500/15 text-teal-800 dark:text-teal-200 border border-teal-300 dark:border-teal-700/60 hover:from-teal-500/30 hover:to-emerald-500/30 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                      title={`Importar os pontos registrados em ${fmtDate(yesterdayLog.date, 's')}`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                      <span>Repetir dores de ontem</span>
+                      {yesterdayPointsCount > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-teal-600 text-white font-black">
+                          {yesterdayPointsCount}
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Line 2: Drawing Tools & Quick Clear */}
+                <div className="w-full flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                  <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/60 p-0.5 rounded-xl border border-slate-200/60 dark:border-slate-700/50">
+                    <button
+                      type="button"
+                      onClick={() => { setAdvMode('point'); setPendingRadiation(null); }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        advMode === 'point'
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-sky-600'
+                      }`}
+                    >
+                      ● Ponto livre
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAdvMode('region'); setPendingRadiation(null); }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        advMode === 'region'
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-sky-600'
+                      }`}
+                    >
+                      ◯ Área circular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAdvMode('radiation'); setPendingRadiation(null); }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        advMode === 'radiation'
+                          ? 'bg-amber-600 text-white shadow-2xs ring-2 ring-amber-300/40'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-amber-600'
+                      }`}
+                    >
+                      ➔ Irradiação anatômica
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {advMode === 'region' && (
+                      <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 font-bold">
+                        <span>Raio: {regionRadius}px</span>
+                        <input
+                          type="range"
+                          min="15"
+                          max="90"
+                          value={regionRadius}
+                          onChange={(e) => setRegionRadius(Number(e.target.value))}
+                          className="w-14 accent-sky-600 cursor-pointer"
+                        />
+                      </div>
+                    )}
+                    {currentDayStats.count > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmClearOpen(true)}
+                        className="px-2 py-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Limpar todos os pontos deste dia"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Limpar tudo
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notification hint for radiation mode */}
+                {advMode === 'radiation' && (
+                  <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-xl border border-amber-200 dark:border-amber-800/60 flex items-center justify-between">
+                    <span>
+                      {pendingRadiation 
+                        ? `Origem marcada em ${getAnatomicalLabelForCoord(pendingRadiation.asset, pendingRadiation.x, pendingRadiation.y)}. Toque no destino para traçar o trajeto anatômico.` 
+                        : 'Toque no ponto de origem da dor no corpo para iniciar a irradiação.'}
+                    </span>
+                    {pendingRadiation && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingRadiation(null)}
+                        className="text-rose-600 dark:text-rose-400 hover:underline cursor-pointer text-[10px]"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* SVG CARDS CONTAINER - Scaled without horizontal scroll */}
+              <div className={`w-full grid items-center justify-center ${
+                activeFigures.length === 1 
+                  ? 'grid-cols-1 max-w-[360px] mx-auto gap-3' 
+                  : activeFigures.length === 2 
+                  ? 'grid-cols-2 max-w-[680px] mx-auto gap-2 sm:gap-4' 
+                  : 'grid-cols-2 sm:grid-cols-3 max-w-[680px] mx-auto gap-2 sm:gap-3'
+              }`}>
+                {activeFigures.map((assetKey) => {
+                  const mask: AtlasMask = ATLAS_MASKS[assetKey] || {
+                    asset: assetKey,
+                    width: assetKey.includes('corpo') ? 479 : 288,
+                    height: assetKey.includes('corpo') ? 984 : 393,
+                    path: ''
+                  };
+
+                  return (
+                    <div
+                      key={assetKey}
+                      className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center shadow-2xs relative w-full"
+                    >
+                      <span className="text-[10px] font-bold text-slate-400 mb-1 block">
+                        {ASSET_NAMES[assetKey] || assetKey}
+                      </span>
+
+                      <div className="w-full relative aspect-auto flex items-center justify-center">
+                        <svg
+                          data-asset={assetKey}
+                          viewBox={`0 0 ${mask.width} ${mask.height}`}
+                          preserveAspectRatio="xMidYMid meet"
+                          className="w-full h-auto select-none max-h-[55vh] sm:max-h-[500px]"
+                          onClick={(e) => handleSvgSilhouetteClick(assetKey, e)}
+                        >
+                          <defs>
+                            <clipPath id={`clip-${assetKey}`}>
+                              <path d={mask.path} />
+                            </clipPath>
+                            <marker
+                              id={`arrow-${assetKey}`}
+                              viewBox="0 0 10 10"
+                              refX="8"
+                              refY="5"
+                              markerWidth="5"
+                              markerHeight="5"
+                              orient="auto-start-reverse"
+                            >
+                              <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="#b45309" />
+                            </marker>
+                          </defs>
+
+                          {/* OFFICIAL NATHAN PNG ANATOMY ARTWORK */}
+                          <image
+                            href={`/anatomy/${assetKey}.png`}
+                            width={mask.width}
+                            height={mask.height}
+                            x="0"
+                            y="0"
+                            pointerEvents="none"
+                          />
+
+                          {/* CLICKABLE MASK SILHOUETTE */}
+                          <path
+                            d={mask.path}
+                            fill="transparent"
+                            style={{ cursor: instrument === 'wpi19' ? 'default' : 'crosshair' }}
+                            pointerEvents={instrument === 'wpi19' ? 'none' : 'auto'}
+                          />
+
+                          {/* 1. WPI-19 POLYGONS (WHEN IN WPI MODE) */}
+                          {instrument === 'wpi19' && WPI19_REGIONS.filter(r => r.asset === assetKey).map((reg) => {
+                            const isSelected = (currentPainMap[reg.id] || 0) > 0;
+                            const isActive = selectedStructureId === reg.id;
+
+                            return (
+                              <g key={reg.id} className="cursor-pointer">
+                                <path
+                                  d={reg.path}
+                                  fill={isSelected ? 'rgba(78, 135, 190, 0.45)' : 'transparent'}
+                                  stroke={isActive ? '#0284c7' : isSelected ? '#3e7bab' : 'rgba(100, 150, 200, 0.15)'}
+                                  strokeWidth={isActive ? 3 : isSelected ? 2.5 : 1}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleWpiRegion(reg.id);
+                                  }}
+                                >
+                                  <title>{reg.label}</title>
+                                </path>
+
+                                {isSelected && (
+                                  <circle
+                                    cx={reg.x}
+                                    cy={reg.y}
+                                    r="9"
+                                    fill="#3e7bab"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    pointerEvents="none"
+                                  />
+                                )}
+                              </g>
+                            );
+                          })}
+
+                          {/* 2. DAS28 JOINTS (WHEN IN DAS28 MODE) */}
+                          {instrument === 'das28' && DAS28_JOINTS.filter(j => j.asset === assetKey).map((joint) => {
+                            const isTender = (currentPainMap[joint.id] || 0) > 0;
+                            const isSwollen = (currentPainMap[`${joint.id}_swollen`] || 0) > 0;
+                            const isSelected = selectedStructureId === joint.id;
+
+                            return (
+                              <g
+                                key={joint.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleDas28Joint(joint.id, 'tender');
+                                }}
+                                className="cursor-pointer group"
+                              >
+                                <circle cx={joint.x} cy={joint.y} r="16" fill="transparent" />
+                                {isSelected && (
+                                  <circle cx={joint.x} cy={joint.y} r="14" fill="none" stroke="#1FBCC4" strokeWidth="2.5" className="animate-pulse" />
+                                )}
+                                <circle
+                                  cx={joint.x}
+                                  cy={joint.y}
+                                  r={isTender || isSwollen ? 8 : 6}
+                                  fill={
+                                    isTender && isSwollen
+                                      ? '#d54778'
+                                      : isTender
+                                      ? '#ef8857'
+                                      : isSwollen
+                                      ? '#9a75c9'
+                                      : '#edf3f7'
+                                  }
+                                  stroke={isTender || isSwollen ? '#ffffff' : '#607e99'}
+                                  strokeWidth="1.8"
+                                />
+                                {(isTender || isSwollen) && (
+                                  <text
+                                    x={joint.x}
+                                    y={joint.y + 3}
+                                    textAnchor="middle"
+                                    className="text-[7px] font-black fill-white select-none pointer-events-none"
+                                  >
+                                    {isTender && isSwollen ? 'D+E' : isTender ? 'D' : 'E'}
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })}
+
+                          {/* 3. ADVANCED & FREE PAIN MARKS (POINTS, REGIONS, RADIATION) */}
+                          {currentMarks.filter(m => m.asset === assetKey || m.to?.asset === assetKey).map((m) => {
+                            const isCurrentSelected = selectedMarkId === m.id;
+                            const opacity = 0.15 + (m.intensity / 10) * 0.22;
+                            const color = m.type === 'joint' 
+                              ? '#6684bd' 
+                              : m.type === 'radiation' 
+                              ? '#e2a14a' 
+                              : m.intensity >= 7 
+                              ? '#db5c73' 
+                              : m.intensity >= 4 
+                              ? '#e98759' 
+                              : '#d0a05d';
+
+                            return (
+                              <g
+                                key={m.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedMarkId(m.id);
+                                  setSelectedStructureId(null);
+                                }}
+                                className="cursor-pointer group"
+                              >
+                                {/* Region / Circular area */}
+                                {m.type === 'region' && m.asset === assetKey && (
+                                  <circle
+                                    cx={m.x}
+                                    cy={m.y}
+                                    r={m.radius || 45}
+                                    fill="#f16b76"
+                                    fillOpacity={opacity}
+                                    stroke="#d76071"
+                                    strokeOpacity="0.75"
+                                    strokeDasharray="5 3"
+                                    strokeWidth="1.5"
+                                    clipPath={`url(#clip-${assetKey})`}
+                                  />
+                                )}
+
+                                {/* Anatomical Radiation line with directional flow */}
+                                {m.type === 'radiation' && m.asset === assetKey && m.to && m.to.asset === assetKey && (
+                                  <g>
+                                    {/* Outer glow aura */}
+                                    <path
+                                      d={getAnatomicalIrradiationPath(assetKey, { x: m.x, y: m.y }, { x: m.to.x, y: m.to.y })}
+                                      fill="none"
+                                      stroke="#f59e0b"
+                                      strokeWidth={isCurrentSelected ? 8 : 6}
+                                      strokeOpacity={0.25}
+                                      strokeLinecap="round"
+                                    />
+                                    {/* Main anatomical tract */}
+                                    <path
+                                      d={getAnatomicalIrradiationPath(assetKey, { x: m.x, y: m.y }, { x: m.to.x, y: m.to.y })}
+                                      fill="none"
+                                      stroke={isCurrentSelected ? '#b45309' : '#d97706'}
+                                      strokeWidth={isCurrentSelected ? 4 : 3}
+                                      strokeLinecap="round"
+                                      markerEnd={`url(#arrow-${assetKey})`}
+                                    />
+                                    {/* Animated neural pulse dash */}
+                                    <path
+                                      d={getAnatomicalIrradiationPath(assetKey, { x: m.x, y: m.y }, { x: m.to.x, y: m.to.y })}
+                                      fill="none"
+                                      stroke="#fef08a"
+                                      strokeWidth={2}
+                                      strokeDasharray="6 8"
+                                      strokeLinecap="round"
+                                      className="animate-pulse"
+                                      opacity={0.9}
+                                    />
+                                  </g>
+                                )}
+
+                                {/* Destination point for radiation */}
+                                {m.type === 'radiation' && m.to && m.to.asset === assetKey && (
+                                  <g>
+                                    <circle cx={m.to.x} cy={m.to.y} r="10" fill="#f59e0b" fillOpacity="0.3" className="animate-pulse" />
+                                    <circle cx={m.to.x} cy={m.to.y} r="4" fill="#b45309" stroke="white" strokeWidth="1.5" />
+                                  </g>
+                                )}
+
+                                {/* Main Marker Pin */}
+                                {m.asset === assetKey && (
+                                  <g>
+                                    {isCurrentSelected && (
+                                      <circle cx={m.x} cy={m.y} r="14" fill={color} opacity="0.2" className="animate-pulse" />
+                                    )}
+                                    <circle
+                                      cx={m.x}
+                                      cy={m.y}
+                                      r={isCurrentSelected ? 8 : 6.5}
+                                      fill={color}
+                                      stroke="white"
+                                      strokeWidth="2"
+                                    />
+                                    <text
+                                      x={m.x}
+                                      y={m.y + 2.8}
+                                      textAnchor="middle"
+                                      className="text-[7px] font-black fill-white select-none pointer-events-none"
+                                    >
+                                      {m.intensity}
+                                    </text>
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          })}
+
+                          {/* Pending Radiation Origin Pin with pulse ring */}
+                          {pendingRadiation && pendingRadiation.asset === assetKey && (
+                            <g>
+                              <circle
+                                cx={pendingRadiation.x}
+                                cy={pendingRadiation.y}
+                                r="16"
+                                fill="#f59e0b"
+                                fillOpacity="0.35"
+                                className="animate-ping"
+                              />
+                              <circle
+                                cx={pendingRadiation.x}
+                                cy={pendingRadiation.y}
+                                r="8.5"
+                                fill="#d97706"
+                                stroke="white"
+                                strokeWidth="2.5"
+                              />
+                            </g>
+                          )}
+                        </svg>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-3 text-[10px] font-bold text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-slate-400/50 rounded-full inline-block" /> Anatomia neutra
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-[#4e82ba] rounded-full inline-block" /> Região WPI
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-[#ef8857] rounded-full inline-block" /> Dor (DAS28)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-[#9a75c9] rounded-full inline-block" /> Edema (DAS28)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-[#e11d48] rounded-full inline-block animate-pulse" /> Dor intensa (7-10)
+                </span>
+              </div>
+            </div>
+
+            {/* DEDICATED CONTROL PANEL & RATING DOCK (5 cols) */}
+            <div className="lg:col-span-5 space-y-4">
+              
+              {/* QUICK ACTIVE POINTS WITH [+] AND [-] STEPPERS */}
+              {currentMarks.length > 0 && (
+                <div className="bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 p-4 rounded-3xl space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                    <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-rose-500" />
+                      Pontos ativos de hoje ({currentMarks.length})
+                    </span>
+                    <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">
+                      Ajuste rápido (+ / -)
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {currentMarks.map((m) => {
+                      const isSelected = selectedMarkId === m.id;
+                      const diff = m.previousIntensity !== undefined ? m.intensity - m.previousIntensity : null;
+
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => {
+                            setSelectedMarkId(m.id);
+                            setSelectedStructureId(null);
+                          }}
+                          className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-teal-50/80 dark:bg-teal-950/40 border-teal-400 dark:border-teal-700 shadow-2xs'
+                              : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
+                              {m.label}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {diff !== null ? (
+                                diff < 0 ? (
+                                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded-md">
+                                    ▼ Melhorou ({diff})
+                                  </span>
+                                ) : diff > 0 ? (
+                                  <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.2 rounded-md">
+                                    ▲ Piorou (+{diff})
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded-md">
+                                    = Mantido
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-[10px] text-teal-600 dark:text-teal-400 font-semibold">
+                                  Novo ponto
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Stepper buttons [-] score [+] */}
+                          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleStepIntensity(m.id, -1)}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-black text-sm flex items-center justify-center border border-slate-200 dark:border-slate-700 active:scale-90 transition-all cursor-pointer"
+                              title="Reduzir intensidade da dor"
+                            >
+                              -
+                            </button>
+
+                            <span className={`w-8 text-center text-xs font-black px-1 py-0.5 rounded-lg ${
+                              m.intensity >= 7 ? 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60' :
+                              m.intensity >= 4 ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-950/60' :
+                              'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60'
+                            }`}>
+                              {m.intensity}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleStepIntensity(m.id, 1)}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-black text-sm flex items-center justify-center border border-slate-200 dark:border-slate-700 active:scale-90 transition-all cursor-pointer"
+                              title="Aumentar intensidade da dor"
+                            >
+                              +
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMark(m.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors ml-0.5 cursor-pointer"
+                              title="Remover ponto de dor"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* RATING DOCK */}
+              <div className="bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 rounded-3xl space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2.5">
+                  <div>
+                    <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest block">
+                      {selectedMark ? 'Marcação selecionada' : selectedStructureId ? 'Estrutura selecionada' : 'Selecione uma área'}
+                    </span>
+                    <h4 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                      {selectedMark ? (
+                        <>
+                          {selectedMark.type === 'radiation' ? (
+                            <ArrowRight className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                          ) : (
+                            <Activity className="w-4 h-4 text-sky-500 flex-shrink-0" />
+                          )}
+                          <span className="truncate">{selectedMark.label}</span>
+                        </>
+                      ) : selectedStructureId ? (
+                        <>
+                          <Activity className="w-4 h-4 text-teal-500" />
+                          {WPI19_REGIONS.find(r => r.id === selectedStructureId)?.label || 
+                           DAS28_JOINTS.find(j => j.id === selectedStructureId)?.label || 
+                           BODY_REGIONS_LIST.find(b => b.id === selectedStructureId)?.label || 
+                           selectedStructureId}
+                        </>
+                      ) : (
+                        'Toque no mapa para avaliar'
+                      )}
+                    </h4>
+                  </div>
+
+                  {(selectedMark || selectedStructureId) && (
+                    <span className="px-2.5 py-1 text-xs font-bold rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                      {selectedMark 
+                        ? `Nota: ${selectedMark.intensity}/10` 
+                        : selectedStructureId && (currentPainMap[selectedStructureId] || 0) > 0
+                        ? `Nota: ${currentPainMap[selectedStructureId]}/10`
+                        : 'Sem dor'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Score Keypad */}
+                {(selectedMark || selectedStructureId) ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Definir nível de dor (0 a 10):
+                      </span>
+                      <div className="grid grid-cols-11 gap-1">
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => {
+                          const activeScore = selectedMark 
+                            ? selectedMark.intensity 
+                            : selectedStructureId 
+                            ? (currentPainMap[selectedStructureId] || 0) 
+                            : 0;
+                          const isCurrent = activeScore === score;
+
+                          return (
+                            <button
+                              key={score}
+                              type="button"
+                              onClick={() => {
+                                if (selectedMark) {
+                                  handleUpdateMarkIntensity(selectedMark.id, score);
+                                } else if (selectedStructureId) {
+                                  const updatedMap = { ...currentPainMap };
+                                  if (score === 0) delete updatedMap[selectedStructureId];
+                                  else updatedMap[selectedStructureId] = score;
+                                  recalculateAndSave(updatedMap);
+                                }
+                              }}
+                              className={`py-2 text-xs font-bold rounded-lg transition-all active:scale-90 duration-150 select-none cursor-pointer ${
+                                isCurrent
+                                  ? score === 0
+                                    ? 'bg-slate-700 text-white shadow-xs scale-105'
+                                    : score <= 3
+                                    ? 'bg-amber-500 text-white shadow-xs scale-105'
+                                    : score <= 6
+                                    ? 'bg-orange-500 text-white shadow-xs scale-105'
+                                    : 'bg-rose-600 text-white shadow-xs scale-105'
+                                  : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60'
+                              }`}
+                            >
+                              {score}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Quick Tiers */}
+                    <div className="grid grid-cols-4 gap-1.5 pt-1">
+                      {[
+                        { label: 'Sem dor', val: 0, cls: 'hover:border-slate-400' },
+                        { label: 'Leve (2)', val: 2, cls: 'hover:border-amber-400' },
+                        { label: 'Moderada (5)', val: 5, cls: 'hover:border-orange-400' },
+                        { label: 'Intensa (8)', val: 8, cls: 'hover:border-rose-400' }
+                      ].map((tier) => (
+                        <button
+                          key={tier.val}
+                          type="button"
+                          onClick={() => {
+                            if (selectedMark) {
+                              handleUpdateMarkIntensity(selectedMark.id, tier.val);
+                            } else if (selectedStructureId) {
+                              const updatedMap = { ...currentPainMap };
+                              if (tier.val === 0) delete updatedMap[selectedStructureId];
+                              else updatedMap[selectedStructureId] = tier.val;
+                              recalculateAndSave(updatedMap);
+                            }
+                          }}
+                          className="py-1 px-2 text-[10px] font-bold rounded-xl border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-500 cursor-pointer"
+                        >
+                          {tier.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Delete button if mark */}
+                    {selectedMark && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMark(selectedMark.id)}
+                        className="w-full min-h-[44px] py-2 px-3 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950/40 dark:text-slate-300 dark:hover:text-rose-400 rounded-2xl text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                      >
+                        <Trash2 className="w-4 h-4" /> Remover esta marcação
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2 py-1 text-xs text-slate-500 dark:text-slate-400">
+                    <p>Toque diretamente no corpo ou nas articulações para avaliar a dor de hoje.</p>
+                    {instrument === 'wpi19' && (
+                      <div className="p-2.5 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-900 text-purple-900 dark:text-purple-200 text-[11px]">
+                        <strong>Regra do WPI:</strong> Marque cada região onde sentiu dor nos últimos 7 dias. O escore vai de 0 a 19.
+                      </div>
+                    )}
+                    {instrument === 'das28' && (
+                      <div className="p-2.5 bg-rose-50/70 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200 text-[11px]">
+                        <strong>Avaliação DAS28:</strong> Avalia ombros, cotovelos, punhos, joelhos e juntas dos dedos nas mãos.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* SENSATION & PAIN TRAITS */}
+              <div className="bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 p-4 rounded-3xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    Sensação predominante da dor:
+                    <InfoTooltip
+                      title="Qualidade da dor"
+                      content="A descrição do tipo de dor ajuda seu médico a distinguir dores inflamatórias, miofasciais e neuropáticas para calibrar o tratamento farmacológico."
+                    />
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {PAIN_CHARACTERS.map((char) => {
+                    const isSelected = (currentLog?.painCharacter || []).includes(char.key);
+                    return (
+                      <Tooltip key={char.key} title={char.label} content={char.description} position="top">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePainCharacter(char.key)}
+                          className={`w-full p-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300'
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>{char.icon}</span>
+                          <span className="truncate">{char.label}</span>
+                        </button>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SUMMARY & RESET */}
+              <div className="bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 p-4 rounded-3xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5 text-teal-500" />
+                    Resumo do dia ({fmtDate(selectedDate, 's')})
+                  </span>
+                  {currentDayStats.count > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClearOpen(true)}
+                      className="text-slate-400 hover:text-rose-600 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" /> Limpar dia
+                    </button>
+                  )}
+                </div>
+
+                {confirmClearOpen && (
+                  <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl space-y-2 text-xs">
+                    <p className="font-bold text-rose-800 dark:text-rose-300 text-[11px]">
+                      Remover todos os pontos deste dia?
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleClearAllRegions}
+                        className="px-2.5 py-1 bg-rose-600 text-white rounded-lg font-bold text-[10px] cursor-pointer"
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmClearOpen(false)}
+                        className="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                  <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Pontos ativos</span>
+                    <strong className="text-base font-bold text-slate-800 dark:text-slate-100">{currentDayStats.count}</strong>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                    <span className="text-[9px] text-slate-400 font-bold block uppercase">Média</span>
+                    <strong className="text-base font-bold text-slate-800 dark:text-slate-100">{currentDayStats.avg}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* QUICK FLARE / CRISIS 1-TAP PRESET BAR */}
-      <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 p-3.5 rounded-3xl space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="p-1 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
-              <Zap className="w-4 h-4" />
-            </span>
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-              Registro Rápido de Estado ({selectedDate === todayISO() ? 'Hoje' : fmtDate(selectedDate, 's')})
-            </span>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-            <Clock className="w-3 h-3" /> 1 toque para economizar energia nos dias difíceis
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <button
-            type="button"
-            onClick={() => handleApplyFlarePreset('severe')}
-            className="p-2.5 rounded-2xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 text-left transition-all cursor-pointer active:scale-98"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-800 dark:text-rose-300">Crise Aguda</span>
-              <span className="text-xs">🚨</span>
-            </div>
-            <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">Dor 8/10, Fadiga intensa</p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleApplyFlarePreset('moderate')}
-            className="p-2.5 rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 text-left transition-all cursor-pointer active:scale-98"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-800 dark:text-amber-300">Dor Moderada</span>
-              <span className="text-xs">⚡</span>
-            </div>
-            <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">Dor 5/10, Sobrecarga</p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleApplyFlarePreset('fatigue_fog')}
-            className="p-2.5 rounded-2xl border border-purple-200 dark:border-purple-900/40 bg-purple-50/70 hover:bg-purple-100 dark:bg-purple-950/20 dark:hover:bg-purple-950/40 text-left transition-all cursor-pointer active:scale-98"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-purple-800 dark:text-purple-300">Fadiga & Fog</span>
-              <span className="text-xs">🧠</span>
-            </div>
-            <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5">Fadiga 9/10, Névoa 8/10</p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleApplyFlarePreset('mild_stable')}
-            className="p-2.5 rounded-2xl border border-teal-200 dark:border-teal-900/40 bg-teal-50/70 hover:bg-teal-100 dark:bg-teal-950/20 dark:hover:bg-teal-950/40 text-left transition-all cursor-pointer active:scale-98"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-teal-800 dark:text-teal-300">Dia Estável</span>
-              <span className="text-xs">🛡️</span>
-            </div>
-            <p className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Dor leve 2/10, Funcional</p>
-          </button>
-        </div>
-      </div>
-
-      {/* MAIN VISUAL WORKSPACE: SILHOUETTE + RATING CONTROLS + SUMMARY */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        
-        {/* LEFT COLUMN: THE HUMAN SILHOUETTE (ANTERIOR & POSTERIOR) (7 cols) */}
-        <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-4 flex flex-col items-center">
-          
-          {/* Top toolbar over silhouette */}
-          <div className="w-full flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Visualização:
-              </span>
-              <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setViewFilter('both')}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                    viewFilter === 'both'
-                      ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  Frente & Costas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewFilter('front')}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                    viewFilter === 'front'
-                      ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  Frente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewFilter('back')}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                    viewFilter === 'back'
-                      ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  Costas
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowIaCustomizer(!showIaCustomizer)}
-              className="text-[10px] font-bold text-teal-600 dark:text-teal-400 flex items-center gap-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer border border-teal-200 dark:border-teal-900/60"
-            >
-              <Wand2 className="w-3 h-3" /> Calibrar Biótipo
-            </button>
-          </div>
-
-          {/* Biotype Calibrator Box */}
-          {showIaCustomizer && (
-            <div className="w-full bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl space-y-2.5 text-xs animate-in fade-in duration-200">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                  <Wand2 className="w-3.5 h-3.5 text-teal-500" /> Calibração Antropométrica da Silhueta
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowIaCustomizer(false)}
-                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                A silhueta é ajustada com base na sua altura ({patientData?.height || 170} cm), peso ({patientData?.weight || 70} kg) e gênero para proporcionalidade clínica.
-              </p>
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={isGenerating}
-                  onClick={handleCalibrateBiotype}
-                  className="px-3 py-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  {isGenerating ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                  Confirmar Calibração
-                </button>
-                {patientData?.customSilhouetteBiotype && (
-                  <button
-                    type="button"
-                    onClick={handleRestoreDefaultSilhouette}
-                    className="px-2.5 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-medium cursor-pointer"
-                  >
-                    Restaurar Padrão
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {genSuccessMsg && (
-            <div className="w-full bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 p-2.5 rounded-xl text-xs text-teal-800 dark:text-teal-300 font-semibold flex items-center gap-2 animate-in fade-in">
-              <Sparkle className="w-4 h-4 text-teal-600" />
-              <span>{genSuccessMsg}</span>
-            </div>
-          )}
-
-          {/* Instruction banner */}
-          <div className="w-full flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/40 px-3 py-1.5 rounded-xl">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-teal-500" />
-              <strong>Como registrar:</strong> Toque em qualquer círculo (pin) no corpo para definir a intensidade.
-            </span>
-            <span className="font-bold text-teal-600 dark:text-teal-400">
-              {currentDayStats.count} pontos ativos
-            </span>
-          </div>
-
-          {/* THE SVG VECTOR SILHOUETTE */}
-          <div className="relative w-full max-w-[440px] aspect-[4/5] bg-slate-50/50 dark:bg-slate-950/30 rounded-2xl p-2 border border-slate-100 dark:border-slate-800 flex items-center justify-center select-none">
-            
-            {/* Front & Back visual labels */}
-            {(viewFilter === 'both' || viewFilter === 'front') && (
-              <div className="absolute left-6 top-3 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800">
-                Frente
-              </div>
-            )}
-            {(viewFilter === 'both' || viewFilter === 'back') && (
-              <div className="absolute right-6 top-3 text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-800">
-                Costas
-              </div>
-            )}
-
-            <svg
-              viewBox={
-                viewFilter === 'front'
-                  ? '0 0 200 500'
-                  : viewFilter === 'back'
-                  ? '200 0 200 500'
-                  : '0 0 400 500'
-              }
-              className="w-full h-full select-none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* FRONT VIEW SILHOUETTE */}
-              {(viewFilter === 'both' || viewFilter === 'front') && (
-                <g id="body-front-outline">
-                  {/* Head */}
-                  <ellipse cx="100" cy="50" rx="16" ry="21" className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]" />
-                  {/* Left Arm Front */}
-                  <path 
-                    d="M 92,71 C 86,75 80,82 72,88 C 62,95 50,102 44,110 C 38,118 36,128 35,138 C 33,158 35,182 39,202 C 41,212 43,222 44,232 C 44.5,236 43,240 39,242 C 34,244.5 28,242 26,236 C 24,230 23,218 25,200 C 27,180 30,160 34,140 C 38,120 44,104 52,94 C 60,84 72,78 84,76 C 88,75 90,73 90,71 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Right Arm Front */}
-                  <path 
-                    d="M 108,71 C 114,75 120,82 128,88 C 138,95 150,102 156,110 C 162,118 164,128 165,138 C 167,158 165,182 161,202 C 159,212 157,222 156,232 C 155.5,236 157,240 161,242 C 166,244.5 172,242 174,236 C 176,230 177,218 175,200 C 173,180 170,160 166,140 C 162,120 156,104 148,94 C 140,84 128,78 116,76 C 112,75 110,73 110,71 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Torso Front */}
-                  <path 
-                    d="M 91,68 C 91,78 88,82 82,85 C 76,88 68,93 64,102 C 60,110 58,118 58,126 L 58,212 C 58,222 61,228 66,234 C 71,239 76,241 82,242 L 118,242 C 124,241 129,239 134,234 C 139,228 142,222 142,212 L 142,126 C 142,118 140,110 136,102 C 132,93 124,88 118,85 C 112,82 109,78 109,68 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Left Leg Front */}
-                  <path 
-                    d="M 70,240 L 76,345 L 74,445 L 64,445 L 66,345 L 85,240 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Right Leg Front */}
-                  <path 
-                    d="M 130,240 L 124,345 L 126,445 L 136,445 L 134,345 L 115,240 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Anatomical Contours Front */}
-                  <path d="M 70,95 Q 100,105 130,95" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                  <path d="M 68,136 Q 100,146 132,136 M 100,138 L 100,165" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                  <path d="M 82,185 Q 100,188 118,185 M 80,208 Q 100,211 120,208" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                  <circle cx="76" cy="345" r="4.5" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                  <circle cx="124" cy="345" r="4.5" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                </g>
-              )}
-
-              {/* BACK VIEW SILHOUETTE */}
-              {(viewFilter === 'both' || viewFilter === 'back') && (
-                <g id="body-back-outline">
-                  {/* Head Back */}
-                  <ellipse cx="300" cy="50" rx="16" ry="21" className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]" />
-                  {/* Left Arm Back */}
-                  <path 
-                    d="M 292,71 C 286,75 280,82 272,88 C 262,95 250,102 244,110 C 238,118 236,128 235,138 C 233,158 235,182 239,202 C 241,212 243,222 244,232 C 244.5,236 243,240 239,242 C 234,244.5 228,242 226,236 C 224,230 223,218 225,200 C 227,180 230,160 234,140 C 238,120 244,104 252,94 C 260,84 272,78 284,76 C 288,75 290,73 290,71 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Right Arm Back */}
-                  <path 
-                    d="M 308,71 C 314,75 320,82 328,88 C 338,95 350,102 356,110 C 362,118 364,128 365,138 C 367,158 365,182 361,202 C 359,212 357,222 356,232 C 355.5,236 357,240 361,242 C 366,244.5 372,242 374,236 C 376,230 377,218 375,200 C 373,180 370,160 366,140 C 362,120 356,104 348,94 C 340,84 328,78 316,76 C 312,75 310,73 310,71 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Torso Back */}
-                  <path 
-                    d="M 291,68 C 291,78 288,82 282,85 C 276,88 268,93 264,102 C 260,110 258,118 258,126 L 258,212 C 258,222 261,228 266,234 C 271,239 276,241 282,242 L 318,242 C 324,241 329,239 334,234 C 339,228 342,222 342,212 L 342,126 C 342,118 340,110 336,102 C 332,93 324,88 318,85 C 312,82 309,78 309,68 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Left Leg Back */}
-                  <path 
-                    d="M 270,240 L 276,345 L 274,445 L 264,445 L 266,345 L 285,240 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Right Leg Back */}
-                  <path 
-                    d="M 330,240 L 324,345 L 326,445 L 336,445 L 334,345 L 315,240 Z" 
-                    className="fill-slate-100/80 dark:fill-slate-800/80 stroke-slate-300 dark:stroke-slate-700 stroke-[1.5]"
-                  />
-                  {/* Spine and Contours Back */}
-                  <path d="M 300,92 L 300,234" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1 stroke-dasharray-[2,2]" />
-                  <path d="M 284,124 Q 274,134 280,148 Q 288,143 290,129 Z" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                  <path d="M 316,124 Q 326,134 320,148 Q 312,143 310,129 Z" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                  <path d="M 282,195 Q 300,191 318,195" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                  <path d="M 270,350 Q 276,348 282,350 M 318,350 Q 324,348 330,350" fill="none" className="stroke-slate-200 dark:stroke-slate-700/60 stroke-1" />
-                </g>
-              )}
-
-              {/* ACTIVE HIGHLIGHT RING FOR SELECTED REGION */}
-              {ANATOMICAL_REGIONS.map((reg) => {
-                if (reg.key !== selectedRegionKey) return null;
-                if (viewFilter === 'front' && reg.side === 'back') return null;
-                if (viewFilter === 'back' && reg.side === 'front') return null;
-                return (
-                  <circle
-                    key={`high-${reg.key}`}
-                    cx={reg.x}
-                    cy={reg.y}
-                    r={20}
-                    className="fill-teal-500/15 stroke-teal-500 stroke-[1.8] stroke-dasharray-[3,3] animate-spin"
-                    style={{ transformOrigin: `${reg.x}px ${reg.y}px`, animationDuration: '8s' }}
-                  />
-                );
-              })}
-
-              {/* RENDER THE TOUCHABLE ANATOMICAL HOTSPOTS (PINS) */}
-              {ANATOMICAL_REGIONS.map((reg) => {
-                if (viewFilter === 'front' && reg.side === 'back') return null;
-                if (viewFilter === 'back' && reg.side === 'front') return null;
-
-                const val = currentPainMap[reg.key];
-                const isActive = reg.key === selectedRegionKey;
-                const hasPain = val !== undefined && val > 0;
-
-                return (
-                  <g 
-                    key={reg.key}
-                    className="group cursor-pointer"
-                    onClick={() => setSelectedRegionKey(reg.key)}
-                  >
-                    {/* Generous touch target (44px diameter) */}
-                    <circle
-                      cx={reg.x}
-                      cy={reg.y}
-                      r={22}
-                      className="fill-transparent stroke-none cursor-pointer"
-                    />
-
-                    {/* Outer pulse for severe pain (>= 7) */}
-                    {hasPain && val >= 7 && (
-                      <circle 
-                        cx={reg.x} 
-                        cy={reg.y} 
-                        r={16} 
-                        className="fill-none stroke-rose-500/60 dark:stroke-rose-400/60 stroke-1.5 animate-ping"
-                        style={{ transformOrigin: `${reg.x}px ${reg.y}px`, animationDuration: '2.5s' }}
-                      />
-                    )}
-
-                    {/* Active pin glow */}
-                    {isActive && (
-                      <circle
-                        cx={reg.x}
-                        cy={reg.y}
-                        r={15}
-                        className="fill-none stroke-teal-500/40 dark:stroke-teal-400/40 stroke-2 animate-pulse"
-                      />
-                    )}
-
-                    {/* Hover highlight circle */}
-                    <circle
-                      cx={reg.x}
-                      cy={reg.y}
-                      r={isActive ? 12 : 9.5}
-                      className="fill-none stroke-teal-400/0 group-hover:stroke-teal-400/70 group-hover:stroke-[1.5] transition-all duration-150"
-                    />
-
-                    {/* Visible Pin Circle */}
-                    <circle
-                      cx={reg.x}
-                      cy={reg.y}
-                      r={isActive ? 10 : 8}
-                      className={`transition-all duration-200 ${
-                        isActive 
-                          ? 'stroke-slate-900 dark:stroke-slate-100 stroke-2 shadow-lg' 
-                          : 'stroke-white dark:stroke-slate-950 stroke-[1.5]'
-                      }`}
-                      fill={
-                        !hasPain
-                          ? 'rgba(148, 163, 184, 0.55)'
-                          : val <= 3
-                          ? '#f59e0b' // amber-500
-                          : val <= 6
-                          ? '#ea580c' // orange-600
-                          : '#e11d48' // rose-600
-                      }
-                    />
-
-                    {/* Score Number inside Pin */}
-                    {hasPain && (
-                      <text
-                        x={reg.x}
-                        y={reg.y + 3.2}
-                        textAnchor="middle"
-                        className="text-[8.5px] font-black fill-white dark:fill-slate-100 font-sans pointer-events-none select-none"
-                      >
-                        {val}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
-
-            {/* Quick in-canvas floating score selector when region is tapped */}
-            {activeRegion && (
-              <div className="absolute inset-x-3 bottom-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-3.5 rounded-2xl shadow-xl space-y-2.5 z-20 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                  <div className="space-y-0.5">
-                    <span className="text-[8px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest block">
-                      Classificar Dor Local
-                    </span>
-                    <h4 className="font-poppins font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-teal-500" />
-                      {activeRegion.label}
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        ({activeRegion.side === 'front' ? 'Frente' : 'Costas'})
-                      </span>
-                    </h4>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-lg ${
-                      (currentPainMap[activeRegion.key] || 0) === 0
-                        ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                        : currentPainMap[activeRegion.key] <= 3
-                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
-                        : currentPainMap[activeRegion.key] <= 6
-                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-400'
-                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400'
-                    }`}>
-                      {currentPainMap[activeRegion.key] !== undefined && currentPainMap[activeRegion.key] > 0
-                        ? `Dor: ${currentPainMap[activeRegion.key]}/10`
-                        : 'Sem dor'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRegionKey(null)}
-                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 1-tap rating buttons 0 to 10 */}
-                <div className="space-y-1">
-                  <div className="grid grid-cols-11 gap-1">
-                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => {
-                      const isCurrent = (currentPainMap[activeRegion.key] || 0) === score;
-                      return (
-                        <button
-                          key={score}
-                          type="button"
-                          onClick={() => handleUpdateRegionPain(score)}
-                          className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                            isCurrent
-                              ? score === 0
-                                ? 'bg-slate-600 text-white shadow-xs'
-                                : score <= 3
-                                ? 'bg-amber-500 text-white shadow-xs'
-                                : score <= 6
-                                ? 'bg-orange-500 text-white shadow-xs'
-                                : 'bg-rose-600 text-white shadow-xs'
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          {score}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="flex justify-between text-[8px] font-semibold text-slate-400 px-0.5">
-                    <span>0: Sem Dor</span>
-                    <span>5: Moderada</span>
-                    <span>10: Máxima</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Color Key */}
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-1 text-[11px] font-semibold text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-slate-300/80 rounded-full inline-block border border-white dark:border-slate-800" />
-              Sem dor (0)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-amber-500 rounded-full inline-block border border-white dark:border-slate-800" />
-              Leve (1-3)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-orange-500 rounded-full inline-block border border-white dark:border-slate-800" />
-              Moderada (4-6)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-rose-600 rounded-full inline-block border border-white dark:border-slate-800 animate-pulse" />
-              Intensa (7-10)
-            </span>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: REGION DETAIL / PAIN PROFILE & 30-DAY HOTSPOTS (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          
-          {/* CARD 1: Selected Region Focus Or Quick Picker */}
-          {activeRegion ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-3.5 animate-in fade-in duration-150">
-              <div className="border-b border-slate-100 dark:border-slate-800 pb-2.5 flex items-center justify-between">
+      {/* 3. CONSCIOUS PRESET CONFIRMATION MODAL */}
+      {presetDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{presetDraft.icon}</span>
                 <div>
-                  <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest block">
-                    Região em Foco
-                  </span>
-                  <h4 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    <User className="w-4 h-4 text-teal-500" />
-                    {activeRegion.label}
+                  <h4 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100">
+                    {presetDraft.label}
                   </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Proposta de registro rápido para {selectedDate === todayISO() ? 'hoje' : fmtDate(selectedDate, 's')}
+                  </p>
                 </div>
-                
-                <span className={`px-2.5 py-1 text-xs font-bold rounded-xl ${
-                  (currentPainMap[activeRegion.key] || 0) === 0
-                    ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                    : currentPainMap[activeRegion.key] <= 3
-                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400'
-                    : currentPainMap[activeRegion.key] <= 6
-                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-400'
-                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400'
-                }`}>
-                  {currentPainMap[activeRegion.key] !== undefined && currentPainMap[activeRegion.key] > 0
-                    ? `${currentPainMap[activeRegion.key]}/10`
-                    : 'Sem dor'}
-                </span>
               </div>
-
-              <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                {activeRegion.description}.
-              </p>
-
-              {/* Slider for precision */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-slate-600 dark:text-slate-300">Intensidade:</span>
-                  <span className="font-bold text-teal-600 dark:text-teal-400">
-                    {currentPainMap[activeRegion.key] || 0} / 10
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={currentPainMap[activeRegion.key] || 0}
-                  onChange={(e) => handleUpdateRegionPain(Number(e.target.value))}
-                  className="w-full accent-teal-500 cursor-pointer h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none"
-                />
-              </div>
-
-              {/* Quick Presets */}
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
-                {[
-                  { label: 'Sem Dor', val: 0, color: 'bg-slate-100 text-slate-700' },
-                  { label: 'Leve (2)', val: 2, color: 'bg-amber-100 text-amber-800' },
-                  { label: 'Mod. (5)', val: 5, color: 'bg-orange-100 text-orange-800' },
-                  { label: 'Forte (8)', val: 8, color: 'bg-rose-100 text-rose-800' }
-                ].map((p) => (
-                  <button
-                    key={p.val}
-                    type="button"
-                    onClick={() => handleUpdateRegionPain(p.val)}
-                    className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
-                      (currentPainMap[activeRegion.key] || 0) === p.val
-                        ? 'ring-2 ring-teal-500 ' + p.color
-                        : 'bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-3 text-center">
-              <div className="w-10 h-10 bg-teal-50 dark:bg-teal-950/40 rounded-2xl flex items-center justify-center mx-auto text-teal-600">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-poppins font-bold text-xs text-slate-800 dark:text-slate-100">
-                  Nenhuma Região Selecionada
-                </h4>
-                <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-                  Toque em um ponto do corpo ou escolha na lista de regiões mais frequentes abaixo para classificar a dor.
-                </p>
-              </div>
-
-              {/* Quick selection pills for common regions */}
-              <div className="flex flex-wrap gap-1.5 justify-center pt-1">
-                {ANATOMICAL_REGIONS.slice(0, 6).map((reg) => (
-                  <button
-                    key={reg.key}
-                    type="button"
-                    onClick={() => setSelectedRegionKey(reg.key)}
-                    className="px-2.5 py-1 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-950/40 transition-colors cursor-pointer"
-                  >
-                    {reg.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* CARD 2: Sensação & Características Clínicas da Dor */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h4 className="font-poppins font-bold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-500" />
-                Como é a Dor Hoje? (Sensação Predominante)
-              </h4>
+              <button
+                type="button"
+                onClick={() => setPresetDraft(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5">
-              {PAIN_CHARACTERS.map((char) => {
-                const isSelected = (currentLog?.painCharacter || []).includes(char.key);
-                return (
-                  <button
-                    key={char.key}
-                    type="button"
-                    onClick={() => handleTogglePainCharacter(char.key)}
-                    className={`p-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-300 shadow-2xs'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{char.icon}</span>
-                    <span className="truncate">{char.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {presetDraft.description}
+            </p>
 
-          {/* CARD 3: Daily Summary & 30-Day Hotspot Analysis */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xs space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <h4 className="font-poppins font-bold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-teal-500" />
-                Resumo do Dia ({fmtDate(selectedDate, 's')})
-              </h4>
-              {currentDayStats.count > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowClearConfirm(true)}
-                  className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1 rounded transition-colors cursor-pointer"
-                  title="Limpar pontos deste dia"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 space-y-2 text-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Valores propostos para confirmação:
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Dor média:</span>
+                  <strong className="text-sm font-bold text-rose-600 dark:text-rose-400">{presetDraft.pain}/10</strong>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Pior dor:</span>
+                  <strong className="text-sm font-bold text-rose-600 dark:text-rose-400">{presetDraft.worstPain}/10</strong>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Fadiga:</span>
+                  <strong className="text-sm font-bold text-purple-600 dark:text-purple-400">{presetDraft.fatigue}/10</strong>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 block">Capacidade funcional:</span>
+                  <strong className="text-sm font-bold text-teal-600 dark:text-teal-400">{presetDraft.functionVal}/10</strong>
+                </div>
+              </div>
             </div>
 
-            {/* In-app Clear Confirmation Prompt */}
-            {showClearConfirm && (
-              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl space-y-2 text-xs">
-                <p className="font-bold text-rose-800 dark:text-rose-300">
-                  Deseja remover todos os pontos de dor deste dia?
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleConfirmClear}
-                    className="px-3 py-1 bg-rose-600 text-white rounded-lg font-bold text-[11px] cursor-pointer"
-                  >
-                    Sim, Limpar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowClearConfirm(false)}
-                    className="px-3 py-1 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {currentDayStats.count === 0 ? (
-              <div className="text-center py-4 text-slate-400 dark:text-slate-500 space-y-1">
-                <Heart className="w-6 h-6 mx-auto text-slate-300 dark:text-slate-700" />
-                <p className="text-xs font-semibold">Nenhum ponto de dor registrado para esta data.</p>
-                <p className="text-[10px]">Clique na silhueta para mapear seus pontos dolorosos.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5 text-xs">
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Pontos Ativos</span>
-                    <strong className="text-slate-800 dark:text-slate-100 text-lg font-poppins">{currentDayStats.count}</strong>
-                    <span className="text-[9px] text-slate-400 block">{currentDayStats.frontCount} frente / {currentDayStats.backCount} costas</span>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Média Local</span>
-                    <strong className="text-slate-800 dark:text-slate-100 text-lg font-poppins">{currentDayStats.avg}</strong>
-                    <span className="text-[9px] text-slate-400 block">escala de 1 a 10</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-semibold">Pico de Dor:</span>
-                  <strong className="text-slate-800 dark:text-slate-200">{currentDayStats.worstName}</strong>
-                </div>
-              </div>
-            )}
-
-            {/* 30-Day Hotspot Analysis List */}
-            {hotspotStats.length > 0 && (
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <BarChart2 className="w-3 h-3 text-teal-500" /> Áreas Mais Afetadas (30d)
-                  </span>
-                  <span className="text-[10px] text-slate-400">Frequência</span>
-                </div>
-
-                <div className="space-y-1.5">
-                  {hotspotStats.map((item) => (
-                    <div
-                      key={item.key}
-                      onClick={() => setSelectedRegionKey(item.key)}
-                      className="p-2 rounded-xl bg-slate-50 hover:bg-teal-50/60 dark:bg-slate-800/40 dark:hover:bg-teal-950/30 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs cursor-pointer transition-colors"
-                    >
-                      <div className="space-y-0.5">
-                        <strong className="font-semibold text-slate-700 dark:text-slate-200 block">
-                          {item.label}
-                        </strong>
-                        <span className="text-[10px] text-slate-400">
-                          {item.count} dias registrados • Média {item.avgIntensity}/10
-                        </span>
-                      </div>
-                      <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400">
-                        {item.percentage}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmPresetDraft}
+                className="flex-1 min-h-[44px] py-2.5 px-4 bg-teal-500 hover:bg-teal-600 text-white font-bold rounded-2xl text-xs transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                Confirmar e registrar
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresetDraft(null)}
+                className="min-h-[44px] py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-2xl text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

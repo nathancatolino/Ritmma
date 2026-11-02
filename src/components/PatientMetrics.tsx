@@ -9,6 +9,7 @@ import { QS, DX, QuestionnaireConfig } from '../data';
 import { fmtDate, todayISO, scoreQuestionnaire, interpretBand } from '../utils';
 import { BandLineChart } from './Charts';
 import { Stethoscope, ClipboardCheck, ArrowRight, Play, RefreshCw, Info, Brain } from 'lucide-react';
+import { Tooltip, InfoTooltip } from './Tooltip';
 
 interface PatientMetricsProps {
   patientData: PatientData;
@@ -218,6 +219,10 @@ export const PatientMetrics: React.FC<PatientMetricsProps> = ({ patientData, onS
                   <div>
                     <h4 className="font-poppins font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                       <span className="text-lg">{def.icon}</span> {q.name}
+                      <InfoTooltip
+                        title={q.name}
+                        content={`${def.desc} Instrumento clínico padronizado utilizado para quantificar o impacto da condição e guiar a conduta terapêutica.`}
+                      />
                     </h4>
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block mt-0.5">
                       Frequência recomendada: {def.freq} ·{' '}
@@ -250,7 +255,7 @@ export const PatientMetrics: React.FC<PatientMetricsProps> = ({ patientData, onS
                 <button
                   type="button"
                   onClick={() => handleStartQ(dx)}
-                  className="w-full py-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl flex items-center justify-center gap-1.5"
+                  className="w-full py-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {last ? <RefreshCw className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   {last ? 'Refazer Avaliação' : 'Iniciar Avaliação'}
@@ -264,6 +269,10 @@ export const PatientMetrics: React.FC<PatientMetricsProps> = ({ patientData, onS
             <h3 className="font-poppins font-bold text-xs sm:text-sm text-slate-500 dark:text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-800 pb-2 flex items-center gap-1.5 select-none">
               <Brain className="w-3.5 h-3.5 text-slate-500" />
               <span>Saúde Mental & Sensibilização Central</span>
+              <InfoTooltip
+                title="Saúde Mental & Sensibilização"
+                content="A dor crônica afeta neurotransmissores como serotonina e noradrenalina. O monitoramento de ansiedade, humor e hipersensibilidade do sistema nervoso central é indispensável para o tratamento multimodal."
+              />
             </h3>
 
             {['PHQ9', 'GAD7', 'CSI7'].map((type) => {
@@ -273,6 +282,23 @@ export const PatientMetrics: React.FC<PatientMetricsProps> = ({ patientData, onS
               const bandInfo = last ? interpretBand(type, last.score) : null;
               const due = !last || isDue(type);
 
+              const mentalHealthTooltips: Record<string, { title: string; desc: string }> = {
+                PHQ9: {
+                  title: 'PHQ-9 (Patient Health Questionnaire-9)',
+                  desc: 'Escala médica de 9 itens que quantifica sintomas de desânimo, anedonia e humor deprimido nas últimas duas semanas.'
+                },
+                GAD7: {
+                  title: 'GAD-7 (Generalized Anxiety Disorder-7)',
+                  desc: 'Instrumento padrão para triagem e monitoramento da intensidade de ansiedade, inquietação e preocupação excessiva.'
+                },
+                CSI7: {
+                  title: 'CSI-7 (Central Sensitization Inventory)',
+                  desc: 'Avalia a hipersensibilidade do sistema nervoso central, fadiga e intolerância a estímulos em síndromes de sensibilidade central.'
+                }
+              };
+
+              const info = mentalHealthTooltips[type];
+
               return (
                 <div
                   key={type}
@@ -280,7 +306,10 @@ export const PatientMetrics: React.FC<PatientMetricsProps> = ({ patientData, onS
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{q.name}</h4>
+                      <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <span>{q.name}</span>
+                        {info && <InfoTooltip title={info.title} content={info.desc} />}
+                      </h4>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                         {last
                           ? `Último: ${fmtDate(last.date, 's')} (${last.score}/${q.max}${

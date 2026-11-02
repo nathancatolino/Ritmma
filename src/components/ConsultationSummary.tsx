@@ -358,6 +358,58 @@ export const ConsultationSummary: React.FC<ConsultationSummaryProps> = ({
     return Object.keys(patientData.diagnoses).filter((k) => patientData.diagnoses[k]);
   }, [patientData.diagnoses]);
 
+  // Filter pain episodes in the selected period
+  const periodEpisodes = useMemo(() => {
+    if (!patientData.painEpisodes || !patientData.painEpisodes.length || !filteredLogs.length) return [];
+    const start = filteredLogs[0].date;
+    const end = filteredLogs[filteredLogs.length - 1].date;
+    return patientData.painEpisodes.filter((ep) => ep.date >= start && ep.date <= end);
+  }, [patientData.painEpisodes, filteredLogs]);
+
+  // Longitudinal comparison with previous period
+  const comparisonMetrics = useMemo(() => {
+    if (filteredLogs.length === 0) return null;
+    const currentDays = filteredLogs.length;
+    const firstDate = filteredLogs[0].date;
+    const prevLogs = chronLogs.filter((l) => l.date < firstDate).slice(-currentDays);
+    if (prevLogs.length === 0) return null;
+
+    const calcAvg = (logs: DailyLog[], field: keyof DailyLog) => {
+      const valid = logs.map((l) => l[field] as number).filter((v) => v != null && !isNaN(v));
+      return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+    };
+
+    const currPain = calcAvg(filteredLogs, 'pain');
+    const prevPain = calcAvg(prevLogs, 'pain');
+    const currFatigue = calcAvg(filteredLogs, 'fatigue');
+    const prevFatigue = calcAvg(prevLogs, 'fatigue');
+    const currSleep = calcAvg(filteredLogs, 'sleep');
+    const prevSleep = calcAvg(prevLogs, 'sleep');
+
+    return {
+      prevDaysCount: prevLogs.length,
+      painDelta: currPain != null && prevPain != null ? currPain - prevPain : null,
+      fatigueDelta: currFatigue != null && prevFatigue != null ? currFatigue - prevFatigue : null,
+      sleepDelta: currSleep != null && prevSleep != null ? currSleep - prevSleep : null,
+      prevPain,
+      prevFatigue,
+      prevSleep
+    };
+  }, [filteredLogs, chronLogs]);
+
+  // Data completeness and provenance distinction
+  const dataProvenance = useMemo(() => {
+    const totalDays = filteredLogs.length;
+    const reportedDays = filteredLogs.filter((l) => l.pain != null || l.fatigue != null).length;
+    const deviceDays = filteredLogs.filter((l) => l.wearableSync?.steps != null || l.wearableSync?.sleepHours != null).length;
+    return {
+      totalDays,
+      reportedDays,
+      deviceDays,
+      episodesCount: periodEpisodes.length
+    };
+  }, [filteredLogs, periodEpisodes]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -374,7 +426,7 @@ export const ConsultationSummary: React.FC<ConsultationSummaryProps> = ({
       : '-';
 
     const text = `
-📋 RELATÓRIO DE SAÚDE & EVOLUÇÃO - RITMMA
+📋 RELATÓRIO DE SAÚDE & EVOLUÇÃO CLÍNICA - RITMMA
 Paciente: ${patientAccount.name}
 Período: ${filteredLogs.length > 0 ? `${fmtDate(filteredLogs[0].date, 's')} a ${fmtDate(filteredLogs[filteredLogs.length - 1].date, 's')}` : 'Sem dados'} (${periodDaysCount} dias avaliados)
 
@@ -382,15 +434,20 @@ Período: ${filteredLogs.length > 0 ? `${fmtDate(filteredLogs[0].date, 's')} a $
 • Dor Média: ${avgPain}/10
 • Fadiga Média: ${avgFatigue}/10
 • Qualidade do Sono: ${avgSleep}/10
+${comparisonMetrics && comparisonMetrics.painDelta != null ? `• Comparativo com período anterior: Dor ${comparisonMetrics.painDelta > 0 ? '+' : ''}${comparisonMetrics.painDelta.toFixed(1)}, Fadiga ${comparisonMetrics.fatigueDelta ? (comparisonMetrics.fatigueDelta > 0 ? '+' : '') + comparisonMetrics.fatigueDelta.toFixed(1) : '-'}` : ''}
+
+🔥 EPISÓDIOS DE DOR & CRISES:
+• Total de crises registradas: ${periodEpisodes.length}
+${periodEpisodes.map(e => `  - ${fmtDate(e.date, 's')} às ${e.startTime}: Pico ${e.peakPain}/10 (${e.locations.join(', ')})`).slice(0, 5).join('\n')}
 
 💊 ADERÊNCIA A MEDICAÇÕES:
 • Adesão Geral: ${adherenceInfo.rate}% (${adherenceInfo.takenCount} tomadas de ${adherenceInfo.expectedCount} previstas)
 
-⚡ MEDICAÇÕES DE CRISE (SOS):
+⚡ RESGATE / INTERVENÇÕES:
 ${Object.keys(medStats).length ? Object.entries(medStats).map(([med, st]) => `• ${med}: ${(st as { taken: number }).taken} uso(s)`).join('\n') : '• Nenhum resgate registrado no período.'}
 
 🔍 GATILHOS E PADRÕES MAIS RELEVANTES:
-${periodTriggers.length ? periodTriggers.map(t => `• ${t.trigger}: variação de ${t.delta > 0 ? '+' : ''}${t.delta.toFixed(1)} em dor`).join('\n') : '• Sem gatilhos atípicos mapeados.'}
+${periodTriggers.length ? periodTriggers.map(t => `• ${t.trigger}: variação observada de ${t.delta > 0 ? '+' : ''}${t.delta.toFixed(1)} em dor`).join('\n') : '• Sem gatilhos atípicos mapeados.'}
     `.trim();
 
     navigator.clipboard.writeText(text);
@@ -917,6 +974,204 @@ ${periodTriggers.length ? periodTriggers.map(t => `• ${t.trigger}: variação 
                 )}
               </div>
 
+            </div>
+          </div>
+
+          {/* Section 6: Pain Episodes & Intervention Responses */}
+          <div className="space-y-4 print-avoid-break">
+            <h3 className="font-poppins font-black text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b pb-1 flex items-center justify-between">
+              <span>6) Episódios de Dor & Avaliação de Intervenções no Período</span>
+              <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
+                {periodEpisodes.length} crise(s) registrada(s)
+              </span>
+            </h3>
+
+            {periodEpisodes.length === 0 ? (
+              <div className="bg-slate-50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl text-center text-xs text-slate-400 font-medium">
+                Nenhum episódio agudo ou crise de dor registrado especificamente neste intervalo de datas.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-xs">
+                    <span className="text-slate-400 block font-medium">Pico Médio de Dor em Crises</span>
+                    <strong className="text-xl font-black text-rose-600 dark:text-rose-400">
+                      {(periodEpisodes.reduce((a, b) => a + b.peakPain, 0) / periodEpisodes.length).toFixed(1)}/10
+                    </strong>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-xs">
+                    <span className="text-slate-400 block font-medium">Regiões Mais Acometidas</span>
+                    <strong className="text-xs font-extrabold text-slate-700 dark:text-slate-200 block truncate mt-1">
+                      {Array.from(new Set(periodEpisodes.flatMap(e => e.locations))).slice(0, 3).join(', ') || 'Não especificadas'}
+                    </strong>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl shadow-xs">
+                    <span className="text-slate-400 block font-medium">Intervenções de Resgate</span>
+                    <strong className="text-xl font-black text-teal-600 dark:text-teal-400">
+                      {periodEpisodes.reduce((acc, ep) => acc + (ep.interventions?.length || 0), 0)} aplicadas
+                    </strong>
+                  </div>
+                </div>
+
+                {/* List of episodes */}
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1 print:max-h-none print:overflow-visible">
+                  {periodEpisodes.map((ep) => (
+                    <div
+                      key={ep.id}
+                      className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1.5 text-xs shadow-xs"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {fmtDate(ep.date, 's')} às {ep.startTime} {ep.endTime ? `- ${ep.endTime}` : '(em andamento)'}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            · {ep.locations.join(', ') || 'Local não detalhado'}
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-rose-600 text-xs">
+                          Início {ep.initialPain}/10 → Pico {ep.peakPain}/10 {ep.finalPain != null ? `→ Final ${ep.finalPain}/10` : ''}
+                        </span>
+                      </div>
+
+                      {ep.interventions && ep.interventions.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1 text-[10px]">
+                          {ep.interventions.map((intv) => (
+                            <span
+                              key={intv.id}
+                              className="px-2 py-0.5 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-100 dark:border-teal-900/40 rounded-md font-semibold"
+                            >
+                              {intv.type === 'pharmacological' ? '💊' : '🌿'} {intv.name} ({intv.prePainIntensity}→{intv.postPainIntensity ?? '?'} /10 · Alívio: {intv.perceivedRelief === 'complete' ? 'Total' : intv.perceivedRelief === 'significant' ? 'Significativo' : intv.perceivedRelief === 'partial' ? 'Parcial' : 'Sem alívio'})
+                              {intv.adverseEvents ? ` ⚠️ Efeito adverso: ${intv.adverseEvents}` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 7: Longitudinal Comparison with Previous Period */}
+          {comparisonMetrics && (
+            <div className="space-y-4 print-avoid-break">
+              <h3 className="font-poppins font-black text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b pb-1">
+                7) Comparativo Longitudinal com o Período Anterior ({comparisonMetrics.prevDaysCount} dias prévios)
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1">
+                  <span className="text-slate-400 font-medium block">Variação de Dor Média</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-black text-slate-800 dark:text-slate-100">
+                      {comparisonMetrics.painDelta != null
+                        ? `${comparisonMetrics.painDelta > 0 ? '+' : ''}${comparisonMetrics.painDelta.toFixed(1)}`
+                        : '—'}
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      comparisonMetrics.painDelta != null && comparisonMetrics.painDelta <= 0
+                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400'
+                        : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400'
+                    }`}>
+                      {comparisonMetrics.painDelta != null && comparisonMetrics.painDelta <= 0 ? 'Melhora' : 'Piora'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    Média anterior: {comparisonMetrics.prevPain?.toFixed(1) ?? '—'}/10
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1">
+                  <span className="text-slate-400 font-medium block">Variação de Fadiga Média</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-black text-slate-800 dark:text-slate-100">
+                      {comparisonMetrics.fatigueDelta != null
+                        ? `${comparisonMetrics.fatigueDelta > 0 ? '+' : ''}${comparisonMetrics.fatigueDelta.toFixed(1)}`
+                        : '—'}
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      comparisonMetrics.fatigueDelta != null && comparisonMetrics.fatigueDelta <= 0
+                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400'
+                        : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400'
+                    }`}>
+                      {comparisonMetrics.fatigueDelta != null && comparisonMetrics.fatigueDelta <= 0 ? 'Melhora' : 'Piora'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    Média anterior: {comparisonMetrics.prevFatigue?.toFixed(1) ?? '—'}/10
+                  </span>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1">
+                  <span className="text-slate-400 font-medium block">Variação de Qualidade de Sono</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-black text-slate-800 dark:text-slate-100">
+                      {comparisonMetrics.sleepDelta != null
+                        ? `${comparisonMetrics.sleepDelta > 0 ? '+' : ''}${comparisonMetrics.sleepDelta.toFixed(1)}`
+                        : '—'}
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      comparisonMetrics.sleepDelta != null && comparisonMetrics.sleepDelta >= 0
+                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400'
+                        : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400'
+                    }`}>
+                      {comparisonMetrics.sleepDelta != null && comparisonMetrics.sleepDelta >= 0 ? 'Melhora' : 'Declínio'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    Média anterior: {comparisonMetrics.prevSleep?.toFixed(1) ?? '—'}/10
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section 8: Data Completeness & Distinction of Provenance */}
+          <div className="space-y-4 print-avoid-break">
+            <h3 className="font-poppins font-black text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b pb-1">
+              8) Auditoria & Proveniência dos Dados Clínicos
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1">
+                <span className="text-[10px] font-black uppercase text-teal-600 dark:text-teal-400 tracking-wider block">
+                  1. Dados Autorrelatados (Diário)
+                </span>
+                <strong className="text-base text-slate-800 dark:text-slate-200">
+                  {dataProvenance.reportedDays} de {dataProvenance.totalDays} dias ({Math.round((dataProvenance.reportedDays / Math.max(1, dataProvenance.totalDays)) * 100)}%)
+                </strong>
+                <p className="text-[10px] text-slate-400">
+                  Pontuações subjetivas de dor, fadiga, estresse e rigidez matinal informadas pelo paciente.
+                </p>
+              </div>
+
+              <div className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1">
+                <span className="text-[10px] font-black uppercase text-sky-600 dark:text-sky-400 tracking-wider block">
+                  2. Medições Objetivas (Sensores)
+                </span>
+                <strong className="text-base text-slate-800 dark:text-slate-200">
+                  {dataProvenance.deviceDays} dias com wearable
+                </strong>
+                <p className="text-[10px] text-slate-400">
+                  Passos e estágios de sono sincronizados diretamente via Google Fit ou Apple Health.
+                </p>
+              </div>
+
+              <div className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl space-y-1">
+                <span className="text-[10px] font-black uppercase text-violet-600 dark:text-violet-400 tracking-wider block">
+                  3. Interpretações Estatísticas
+                </span>
+                <strong className="text-base text-slate-800 dark:text-slate-200">
+                  {periodTriggers.length} associações mapeadas
+                </strong>
+                <p className="text-[10px] text-slate-400">
+                  Modelos de correlação temporal para discussão com o médico assistente. Não implicam causalidade.
+                </p>
+              </div>
             </div>
           </div>
 

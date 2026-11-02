@@ -23,15 +23,15 @@ export interface HealthKitPayload {
 
 export interface HealthKitSyncResult {
   success: boolean;
-  data: WearableSyncData;
-  source: 'healthkit_bridge' | 'healthkit_shortcut' | 'healthkit_demo';
+  data?: WearableSyncData;
+  source: 'healthkit_bridge' | 'healthkit_shortcut' | 'healthkit_demo' | 'healthkit_unavailable';
   message: string;
   shortcutUrl?: string;
   rawDetails?: {
-    steps: number;
-    sleepHours: number;
-    hrvSdnn: number;
-    restingBpm: number;
+    steps?: number;
+    sleepHours?: number;
+    hrvSdnn?: number;
+    restingBpm?: number;
   };
 }
 
@@ -39,33 +39,45 @@ export interface HealthKitSyncResult {
  * Apple HealthKit API & Web Bridge Wrapper
  * Bridges Apple HealthKit data (steps, sleep stages/duration, and HRV SDNN)
  * via iOS Shortcuts Automation, Health Auto Export Webhook, or local HealthKit Bridge.
+ *
+ * RIGOR CIENTÍFICO E INTEGRIDADE:
+ * - Apenas dados reais fornecidos pelo iPhone/Apple Watch são aceitos como medição clínica.
+ * - Falhas ou ausência de dados retornam aviso transparente, nunca valores fictícios.
  */
 export async function fetchHealthKitMetrics(
   customPayload?: HealthKitPayload | null,
-  targetDateISO?: string
+  targetDateISO?: string,
+  allowDemoFallback: boolean = false
 ): Promise<HealthKitSyncResult> {
   const dateStr = targetDateISO || new Date().toISOString().split('T')[0];
-  const dateObj = new Date(dateStr + 'T00:00:00');
 
   // If a direct HealthKit payload was received (e.g. from iOS Shortcut or Health Auto Export webhook)
   if (customPayload) {
-    let steps = customPayload.steps || 0;
-    let sleepHours = customPayload.sleepHours || (customPayload.sleepMinutes ? customPayload.sleepMinutes / 60 : 0);
-    let hrv = customPayload.hrv || 0;
-    let restingHeartRate = customPayload.restingHeartRate || 0;
+    let steps = customPayload.steps;
+    let sleepHours = customPayload.sleepHours || (customPayload.sleepMinutes ? customPayload.sleepMinutes / 60 : undefined);
+    let hrv = customPayload.hrv;
+    let restingHeartRate = customPayload.restingHeartRate;
 
     // Parse samples if present (HealthKit standard export structure)
     if (customPayload.samples && Array.isArray(customPayload.samples)) {
+      let sampleSteps = 0;
+      let hasSampleSteps = false;
+      let sampleSleep = 0;
+      let hasSampleSleep = false;
+
       customPayload.samples.forEach((sample) => {
         const type = sample.type.toLowerCase();
         if (type.includes('stepcount') || type.includes('passos')) {
-          steps += sample.value || 0;
+          sampleSteps += sample.value || 0;
+          hasSampleSteps = true;
         } else if (type.includes('sleep') || type.includes('sono')) {
           if (sample.startDate && sample.endDate) {
             const duration = (new Date(sample.endDate).getTime() - new Date(sample.startDate).getTime()) / (1000 * 3600);
-            sleepHours += Math.max(0, duration);
-          } else {
-            sleepHours += (sample.value || 0) / 60;
+            sampleSleep += Math.max(0, duration);
+            hasSampleSleep = true;
+          } else if (sample.value) {
+            sampleSleep += sample.value / 60;
+            hasSampleSleep = true;
           }
         } else if (type.includes('heartratevariability') || type.includes('hrv') || type.includes('sdnn')) {
           hrv = sample.value || hrv;
@@ -73,29 +85,39 @@ export async function fetchHealthKitMetrics(
           restingHeartRate = sample.value || restingHeartRate;
         }
       });
+
+      if (hasSampleSteps) steps = sampleSteps;
+      if (hasSampleSleep) sleepHours = sampleSleep;
     }
 
-    const finalSteps = steps > 0 ? steps : 7120;
-    const finalSleep = sleepHours > 0 ? Number(sleepHours.toFixed(1)) : 7.4;
-    const finalHrv = hrv > 0 ? Math.round(hrv) : 52;
-    const finalBpm = restingHeartRate > 0 ? Math.round(restingHeartRate) : 62;
-    const sleepQuality = Math.min(100, Math.max(50, Math.round((finalSleep / 8) * 80 + (finalHrv / 55) * 20)));
+    const finalSteps = steps !== undefined ? Math.round(steps) : undefined;
+    const finalSleep = sleepHours !== undefined ? Number(sleepHours.toFixed(1)) : undefined;
+    const finalHrv = hrv !== undefined ? Math.round(hrv) : undefined;
+    const finalBpm = restingHeartRate !== undefined ? Math.round(restingHeartRate) : undefined;
 
     const syncData: WearableSyncData = {
       steps: finalSteps,
       sleepHours: finalSleep,
-      sleepQuality,
+      sleepQuality: finalSleep !== undefined ? Math.min(100, Math.max(30, Math.round((finalSleep / 8) * 100))) : undefined,
       hrv: finalHrv,
       restingHeartRate: finalBpm,
       device: customPayload.sourceDevice || 'Apple Watch (HealthKit)',
-      syncedAt: new Date().toISOString()
+      syncedAt: new Date().toISOString(),
+      dataSource: 'device_api',
+      isDemo: false
     };
+
+    const detailsParts: string[] = [];
+    if (finalSteps !== undefined) detailsParts.push(`${finalSteps.toLocaleString('pt-BR')} passos`);
+    if (finalSleep !== undefined) detailsParts.push(`${finalSleep}h de sono`);
+    if (finalHrv !== undefined) detailsParts.push(`HRV (SDNN) de ${finalHrv}ms`);
+    if (finalBpm !== undefined) detailsParts.push(`FC de ${finalBpm} bpm`);
 
     return {
       success: true,
       data: syncData,
       source: 'healthkit_bridge',
-      message: `Dados recebidos do Apple HealthKit: ${finalSteps.toLocaleString('pt-BR')} passos, ${finalSleep}h de sono e HRV de ${finalHrv}ms.`,
+      message: `Dados recebidos do Apple HealthKit: ${detailsParts.join(', ')}.`,
       rawDetails: {
         steps: finalSteps,
         sleepHours: finalSleep,
@@ -105,27 +127,47 @@ export async function fetchHealthKitMetrics(
     };
   }
 
-  // Realistic calibrated Apple Health / Apple Watch telemetry for sandbox & live sync
+  // If no payload and demo is not explicitly allowed
+  if (!allowDemoFallback) {
+    return {
+      success: false,
+      source: 'healthkit_unavailable',
+      message: 'Nenhum dado do Apple HealthKit recebido hoje. Configure o Atalho do iPhone ou importe seu arquivo de exportação de saúde para sincronizar.'
+    };
+  }
+
+  // Explicit demo only
+  return getHealthKitDemoMetrics(targetDateISO);
+}
+
+/**
+ * Retorna dados fictícios exclusivamente para validação e testes de tela no navegador.
+ * Identificado como [DEMO] e isDemo: true.
+ */
+export function getHealthKitDemoMetrics(targetDateISO?: string): HealthKitSyncResult {
+  const dateStr = targetDateISO || new Date().toISOString().split('T')[0];
+  const dateObj = new Date(dateStr + 'T00:00:00');
   const daySeed = (dateObj.getDate() * 23 + dateObj.getMonth() * 41) % 100;
   const mockSteps = 7240 + (daySeed * 50);
   const mockSleepHours = Number((7.1 + (daySeed % 12) * 0.1).toFixed(1));
-  const mockHrv = 48 + (daySeed % 28); // Apple Watch HRV is measured in SDNN (ms)
+  const mockHrv = 48 + (daySeed % 28);
   const mockRestingBpm = 61 + (daySeed % 10);
-  const mockSleepScore = Math.min(98, Math.max(60, Math.round(78 + (mockSleepHours - 7) * 7 + (mockHrv - 50) * 0.5)));
 
   return {
     success: true,
     data: {
       steps: mockSteps,
       sleepHours: mockSleepHours,
-      sleepQuality: mockSleepScore,
+      sleepQuality: Math.round(78 + (mockSleepHours - 7) * 7),
       hrv: mockHrv,
       restingHeartRate: mockRestingBpm,
-      device: 'Apple Watch Series 9 / Ultra (HealthKit)',
-      syncedAt: new Date().toISOString()
+      device: '[DEMO] Apple Watch Simulado',
+      syncedAt: new Date().toISOString(),
+      dataSource: 'demo_simulation',
+      isDemo: true
     },
     source: 'healthkit_demo',
-    message: `Dados sincronizados via Apple HealthKit wrapper: ${mockSteps.toLocaleString('pt-BR')} passos, ${mockSleepHours}h de sono, HRV (SDNN) ${mockHrv}ms e FC ${mockRestingBpm} bpm.`,
+    message: `[AMBIENTE DE TESTE / DEMO]: Dados simulados gerados para teste de tela no navegador. Não gravados como medição clínica.`,
     rawDetails: {
       steps: mockSteps,
       sleepHours: mockSleepHours,

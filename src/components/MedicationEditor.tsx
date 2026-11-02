@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MedicationConfig, ScheduledEventConfig } from '../types';
 import { Plus, Trash2, Bell, BellRing, Clock, Pill, Zap, AlertTriangle, Check, Volume2, ShieldAlert, Edit2, Calendar, CalendarDays, Activity, Package } from 'lucide-react';
+import { Tooltip, InfoTooltip } from './Tooltip';
 
 interface MedicationEditorProps {
   medications: MedicationConfig[];
@@ -286,50 +287,58 @@ export const MedicationEditor: React.FC<MedicationEditorProps> = ({
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200 dark:border-slate-800 gap-1 sm:gap-4 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('continuous')}
-          className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeSubTab === 'continuous'
-              ? 'border-teal-500 text-teal-600 dark:text-teal-400'
-              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
-          }`}
-        >
-          <Pill className="w-4 h-4 text-teal-500" /> Uso Contínuo ({continuousMeds.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('rescue')}
-          className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeSubTab === 'rescue'
-              ? 'border-rose-500 text-rose-600 dark:text-rose-400'
-              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
-          }`}
-        >
-          <Zap className="w-4 h-4 text-rose-500" /> Crise / Resgate SOS ({rescueMeds.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('alarms')}
-          className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeSubTab === 'alarms'
-              ? 'border-amber-500 text-amber-600 dark:text-amber-400'
-              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
-          }`}
-        >
-          <BellRing className="w-4 h-4 text-amber-500" /> Despertadores & Horários
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('therapies')}
-          className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeSubTab === 'therapies'
-              ? 'border-purple-500 text-purple-600 dark:text-purple-400'
-              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
-          }`}
-        >
-          <Calendar className="w-4 h-4 text-purple-500" /> Terapias & Agenda ({scheduledEvents.length})
-        </button>
+        <Tooltip title="Uso Contínuo" content="Medicamentos preventivos de tomada diária (imunobiológicos, neuromoduladores, reposições) com controle de posologia e estoque.">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('continuous')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeSubTab === 'continuous'
+                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <Pill className="w-4 h-4 text-teal-500" /> Uso Contínuo ({continuousMeds.length})
+          </button>
+        </Tooltip>
+        <Tooltip title="Crise / Resgate SOS" content="Analgésicos e anti-inflamatórios de alívio rápido para uso exclusivo em crises agudas com alerta de dose máxima diária.">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('rescue')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeSubTab === 'rescue'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <Zap className="w-4 h-4 text-rose-500" /> Crise / Resgate SOS ({rescueMeds.length})
+          </button>
+        </Tooltip>
+        <Tooltip title="Despertadores & Horários" content="Configuração de alarmes com som e lembretes para que você nunca se esqueça de tomar uma dose no horário certo.">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('alarms')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeSubTab === 'alarms'
+                ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <BellRing className="w-4 h-4 text-amber-500" /> Despertadores & Horários
+          </button>
+        </Tooltip>
+        <Tooltip title="Terapias & Agenda" content="Organização de sessões de fisioterapia, psicoterapia, acupuntura, massagem e consultas médicas com lembretes semanais.">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('therapies')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeSubTab === 'therapies'
+                ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            <Calendar className="w-4 h-4 text-purple-500" /> Terapias & Agenda ({scheduledEvents.length})
+          </button>
+        </Tooltip>
       </div>
 
       {/* Tab 1: Continuous Medications */}

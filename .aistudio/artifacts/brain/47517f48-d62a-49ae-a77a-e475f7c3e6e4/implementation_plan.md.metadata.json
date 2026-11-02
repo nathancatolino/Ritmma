@@ -1,6 +1,6 @@
 {
-  "summary": "Plano mestre de melhorias e correção de bugs focado na experiência do paciente com dor crônica, monitoramento aprofundado de sintomas (mapa de dor corporal, diário clínico rápido, correlações e PROMs), dashboard clínico com alta legibilidade (tema claro/escuro) e arquitetura 100% gratuita sem custos de execução ou APIs pagas.",
-  "updatedAt": "2026-10-17T23:29:23.938641975Z",
+  "summary": "Plano de implementação para reorganização e separação da guia Mapa de Dor, realocação do RITMMA MAP para Gráficos & Análises e refinamento do Painel do Paciente.",
+  "updatedAt": "2026-11-02T20:18:16.575246107Z",
   "requestFeedback": true,
   "userFacing": true
 }

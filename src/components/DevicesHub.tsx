@@ -43,6 +43,7 @@ import {
   WearableConfig
 } from '../services/wearableSyncService';
 import { generateAppleHealthShortcutTemplate } from '../services/healthKitWrapper';
+import { Tooltip, InfoTooltip } from './Tooltip';
 
 interface DevicesHubProps {
   data: ChronosData;
@@ -150,7 +151,7 @@ export const DevicesHub: React.FC<DevicesHubProps> = ({
     try {
       const res = await executeWearableSync(provider, today, wearableConfig.googleFitToken);
 
-      if (res.success) {
+      if (res.success && res.data) {
         // Inject into dailyLogs
         onUpdateData((prev) => {
           const pData = prev.patientData[account.id];
@@ -163,7 +164,11 @@ export const DevicesHub: React.FC<DevicesHubProps> = ({
         setWearableConfig(updated);
 
         if (showMessage) {
-          setWearableFeedbackMsg(`✓ Sincronizado com sucesso! ${res.data.steps?.toLocaleString('pt-BR')} passos, ${res.data.sleepHours}h de sono e HRV de ${res.data.hrv}ms gravados no diário de hoje.`);
+          setWearableFeedbackMsg(`✓ ${res.message}`);
+        }
+      } else {
+        if (showMessage) {
+          setWearableFeedbackMsg(res.message || 'Sincronização indisponível no momento.');
         }
       }
     } catch (err: any) {
@@ -287,12 +292,18 @@ export const DevicesHub: React.FC<DevicesHubProps> = ({
       log.wearableSync = {
         ...(log.wearableSync || {}),
         restingHeartRate: liveBpm,
-        device: bluetoothDevice?.name || (isSimulatedBt ? 'Simulador BLE Polar H10' : 'Sensor Cardíaco BLE'),
-        syncedAt: new Date().toISOString()
+        device: bluetoothDevice?.name || (isSimulatedBt ? '[DEMO] Simulador Sensor Cardíaco BLE' : 'Sensor Cardíaco BLE'),
+        syncedAt: new Date().toISOString(),
+        dataSource: isSimulatedBt ? 'demo_simulation' : 'device_api',
+        isDemo: isSimulatedBt
       };
     });
 
-    setBtSuccessMsg(`✓ Frequência cardíaca (${liveBpm} BPM) gravada com sucesso no diário de hoje!`);
+    setBtSuccessMsg(
+      isSimulatedBt
+        ? `⚠️ [SIMULAÇÃO DE TESTE]: Frequência cardíaca (${liveBpm} BPM) gravada com identificação inequívoca de demonstração.`
+        : `✓ Frequência cardíaca real (${liveBpm} BPM) gravada com sucesso no diário de hoje!`
+    );
   };
 
   // 2. Real File Parser (Apple Health XML, Google Fit JSON, CSV)
@@ -599,6 +610,10 @@ export const DevicesHub: React.FC<DevicesHubProps> = ({
             <h2 className="font-poppins font-bold text-xl text-slate-800 dark:text-slate-100 tracking-tight">
               Dispositivos & Sensores
             </h2>
+            <InfoTooltip
+              title="Integração de Sensores"
+              content="Captura biometria contínua (passos diários, sono profundo e frequência cardíaca) para cruzar dados objetivos de atividade física com suas crises de dor."
+            />
             <span className="px-2.5 py-0.5 bg-teal-100 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 font-bold text-[10px] rounded-full uppercase tracking-wider">
               Conexão Automática
             </span>
@@ -609,26 +624,37 @@ export const DevicesHub: React.FC<DevicesHubProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={handleBackfillHistory}
-            disabled={backfillingHistory}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            title="Importar passos, sono e frequência dos últimos 7 dias"
+          <Tooltip
+            title="Importação Retrospectiva"
+            content="Recupera automaticamente dados de passos, sono e frequência cardíaca dos últimos 7 dias para preencher seu histórico."
+            position="bottom"
           >
-            <Calendar className={`w-3.5 h-3.5 ${backfillingHistory ? 'animate-spin' : ''}`} />
-            {backfillingHistory ? 'Atualizando 7 Dias...' : 'Sincronizar Últimos 7 Dias'}
-          </button>
+            <button
+              type="button"
+              onClick={handleBackfillHistory}
+              disabled={backfillingHistory}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <Calendar className={`w-3.5 h-3.5 ${backfillingHistory ? 'animate-spin' : ''}`} />
+              {backfillingHistory ? 'Atualizando 7 Dias...' : 'Sincronizar Últimos 7 Dias'}
+            </button>
+          </Tooltip>
 
-          <button
-            type="button"
-            onClick={() => handleTriggerWearableSync(wearableConfig.provider !== 'none' ? wearableConfig.provider : 'google_fit')}
-            disabled={isSyncingWearable}
-            className="px-3.5 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          <Tooltip
+            title="Sincronizar Agora"
+            content="Atualiza as métricas de passos e sono de hoje com o dispositivo selecionado."
+            position="bottom"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingWearable ? 'animate-spin' : ''}`} />
-            {isSyncingWearable ? 'Sincronizando...' : 'Sincronizar Hoje'}
-          </button>
+            <button
+              type="button"
+              onClick={() => handleTriggerWearableSync(wearableConfig.provider !== 'none' ? wearableConfig.provider : 'google_fit')}
+              disabled={isSyncingWearable}
+              className="px-3.5 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingWearable ? 'animate-spin' : ''}`} />
+              {isSyncingWearable ? 'Sincronizando...' : 'Sincronizar Hoje'}
+            </button>
+          </Tooltip>
         </div>
       </div>
 
