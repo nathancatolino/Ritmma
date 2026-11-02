@@ -1,6 +1,6 @@
 {
-  "summary": "Plano de implementação para reorganização e separação da guia Mapa de Dor, realocação do RITMMA MAP para Gráficos & Análises e refinamento do Painel do Paciente.",
-  "updatedAt": "2026-11-02T20:18:16.575246107Z",
+  "summary": "Plano completo de reforma do Painel do Médico (resumo executivo em tela única para consulta), sistema de conferência cadastral interna de CRM com envio de documento para liberação de pacientes, restrição de bulas/moléculas exclusivamente para médicos, e detecção discreta de correlação entre sintomas e efeitos adversos de medicamentos.",
+  "updatedAt": "2026-11-02T20:54:34.055823183Z",
   "requestFeedback": true,
   "userFacing": true
 }

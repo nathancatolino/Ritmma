@@ -21,6 +21,26 @@ export interface CrmInfo {
   name: string;
   status: CrmStatus;
   verified: boolean;
+  rqe?: string;
+  specialty?: string;
+  clinicName?: string;
+  submittedDocumentName?: string;
+  submittedDocumentUrl?: string;
+  submittedAt?: string;
+  verifiedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface ClinicalConsultationNote {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  date: string;
+  subjectiveNotes?: string;
+  assessment?: string;
+  plan?: string;
+  prescriptions?: string;
+  createdAt: string;
 }
 
 export interface LgpdConsent {
@@ -333,6 +353,8 @@ export interface PatientData {
   painEpisodes?: PainEpisode[];
   // Clinical Photographs (High-security compressed thumbnails for visible flares/edema)
   clinicalPhotos?: ClinicalPhotoRecord[];
+  // Clinical Consultation Evolution Notes by Doctors
+  clinicalNotes?: ClinicalConsultationNote[];
 }
 
 export interface LinkRecord {

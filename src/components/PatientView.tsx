@@ -1140,8 +1140,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
             {
               group: 'Análise & Evidências',
               items: [
-                { id: 'charts', icon: ChartIcon, label: 'Gráficos & Análise' },
-                { id: 'science', icon: FlaskConical, label: 'Biociências & Bulas', badge: 'Grátis' }
+                { id: 'charts', icon: ChartIcon, label: 'Gráficos & Análise' }
               ]
             },
             {
@@ -4639,7 +4638,24 @@ export const PatientView: React.FC<PatientViewProps> = ({
           )}
 
           {activeTab === 'science' && (
-            <ScienceWorkbench />
+            <div className="p-8 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-xs text-center space-y-3 max-w-lg mx-auto">
+              <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="font-poppins font-bold text-base text-slate-800 dark:text-slate-100">
+                Acesso Exclusivo para Médicos
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                O módulo técnico de Bulas, Farmacologia e Biociências Moleculares é restrito ao portal de profissionais de saúde habilitados.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('home')}
+                className="mt-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Voltar ao Início
+              </button>
+            </div>
           )}
 
           {activeTab === 'news' && (

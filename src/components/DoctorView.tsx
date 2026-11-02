@@ -55,13 +55,21 @@ import {
   Moon,
   Sparkles,
   CalendarDays,
-  FlaskConical
+  FlaskConical,
+  ShieldCheck,
+  ShieldAlert,
+  FileCheck,
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { RitmaLogo } from './RitmaLogo';
 import ConsultationSummary from './ConsultationSummary';
+import { ExecutiveConsultationView } from './ExecutiveConsultationView';
+import { DoctorVerificationModal } from './DoctorVerificationModal';
 import { Tooltip, InfoTooltip } from './Tooltip';
 import { ScienceWorkbench } from './ScienceWorkbench';
+import { CrmInfo } from '../types';
 
 interface DoctorViewProps {
   data: ChronosData;
@@ -113,6 +121,25 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
   const [showRevisionBanner, setShowRevisionBanner] = useState(true);
   const [highlightSettingsFields, setHighlightSettingsFields] = useState(false);
 
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const isDoctorVerified = account.crm?.status === 'verified';
+
+  const handleSaveVerification = (updatedCrm: CrmInfo, updatedAccountFields: Partial<Account>) => {
+    onUpdateData((prev) => {
+      const acc = prev.accounts.find((a) => a.id === account.id);
+      if (acc) {
+        acc.crm = updatedCrm;
+        if (updatedAccountFields.name) acc.name = updatedAccountFields.name;
+        if (updatedAccountFields.specialty) acc.specialty = updatedAccountFields.specialty;
+        if (updatedAccountFields.contact) acc.contact = updatedAccountFields.contact;
+      }
+    });
+    if (updatedAccountFields.name) setName(updatedAccountFields.name);
+    if (updatedAccountFields.specialty) setSpecialty(updatedAccountFields.specialty);
+    setCrmNumber(updatedCrm.number);
+    setCrmUf(updatedCrm.uf);
+  };
+
   // Helpers
   const authPatients = () => {
     return data.links
@@ -136,6 +163,11 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
   };
 
   const handleAuthorizeLink = (pid: string) => {
+    if (!isDoctorVerified) {
+      showToast('Conclua a conferência interna do seu CRM antes de aceitar e vincular pacientes.', 'error');
+      setShowVerificationModal(true);
+      return;
+    }
     onUpdateData((prev) => {
       const link = prev.links.find((l) => l.patientId === pid && l.doctorId === account.id);
       if (link) {
@@ -259,6 +291,11 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
   };
 
   const handleCopyInviteLink = () => {
+    if (!isDoctorVerified) {
+      showToast('Conclua a conferência interna e envio de documento do seu CRM para liberar o link de convite.', 'error');
+      setShowVerificationModal(true);
+      return;
+    }
     const origin = window.location.origin;
     const url = `${origin}/?code=${account.doctorCode}`;
     if (navigator.clipboard) {
@@ -295,6 +332,42 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
   // DRILL-DOWN PATIENT SUMMARY
   const renderPatientDrawer = () => {
     if (!selectedPatientId) return null;
+
+    if (!isDoctorVerified) {
+      return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-end z-50">
+          <div className="bg-white dark:bg-slate-900 border-l border-slate-100 dark:border-slate-800 w-full max-w-md h-full flex flex-col shadow-2xl p-6 justify-center items-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h3 className="font-poppins font-black text-slate-800 dark:text-slate-100 text-lg">
+              Prontuário Confidencial Bloqueado
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs">
+              O acesso aos registros de saúde deste paciente requer validação prévia do seu cadastro e documento do {getCouncilLabel(account.specialty)}.
+            </p>
+            <div className="pt-2 w-full space-y-2">
+              <button
+                onClick={() => {
+                  setSelectedPatientId(null);
+                  setShowVerificationModal(true);
+                }}
+                className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                Concluir Conferência de Cadastro
+              </button>
+              <button
+                onClick={() => setSelectedPatientId(null)}
+                className="w-full py-2 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const p = patients.find((pat) => pat.acc.id === selectedPatientId);
     if (!p) return null;
 
@@ -1264,15 +1337,29 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
   };
 
   if (showConsultationMode) {
-    const patientRecord = patients.find((p) => p.acc.id === showConsultationMode);
-    if (patientRecord) {
-      return (
-        <ConsultationSummary
-          patientData={patientRecord.pd}
-          patientAccount={patientRecord.acc}
-          onBack={() => setShowConsultationMode(null)}
-        />
-      );
+    if (!isDoctorVerified) {
+      setTimeout(() => {
+        setShowConsultationMode(null);
+        setShowVerificationModal(true);
+      }, 0);
+    } else {
+      const patientRecord = patients.find((p) => p.acc.id === showConsultationMode);
+      if (patientRecord) {
+        return (
+          <ExecutiveConsultationView
+            patientData={patientRecord.pd}
+            patientAccount={patientRecord.acc}
+            currentDoctor={account}
+            onBack={() => setShowConsultationMode(null)}
+            onUpdatePatientData={(updater) => {
+              onUpdateData((prev) => {
+                const pd = prev.patientData[patientRecord.acc.id];
+                if (pd) updater(pd);
+              });
+            }}
+          />
+        );
+      }
     }
   }
 
@@ -1314,7 +1401,7 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
             { id: 'home', icon: Home, label: 'Painel Geral' },
             { id: 'patients', icon: Users, label: 'Fichas de Pacientes' },
             { id: 'analysis', icon: PieChart, label: 'Estatísticas Coorte' },
-            { id: 'science', icon: FlaskConical, label: 'Biociências & Fármacos', badge: 'Grátis' },
+            { id: 'science', icon: FlaskConical, label: 'Bulas & Moléculas Clínicas', badge: 'Médico' },
             { id: 'instruments', icon: ClipboardList, label: 'Citações de Referência' },
             { id: 'settings', icon: Settings, label: `Clínica & ${getCouncilLabel(account.specialty)}` },
             { id: 'news', icon: Sparkles, label: 'Vem Aí', badge: 'Em breve' }
@@ -1401,29 +1488,136 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
         <main className="flex-1 p-4 sm:p-6 max-w-5xl w-full mx-auto pb-24">
           {activeTab === 'home' && (
             <div className="space-y-6">
+              {/* Internal Verification Alert Gatekeeper */}
+              {!isDoctorVerified && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in duration-200">
+                  <div className="flex gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-poppins font-bold text-xs text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Cadastro Profissional em Conferência Interna</span>
+                        <span className="px-1.5 py-0.5 bg-amber-500 text-white rounded text-[8px] font-black uppercase">Pendente</span>
+                      </h4>
+                      <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 leading-relaxed max-w-2xl">
+                        Para segurança clínica e conformidade ética, o aceite de novos vínculos e emissão de convites permanecem bloqueados até a conferência de dados e documento do {getCouncilLabel(account.specialty)}.
+                        {account.crm?.submittedDocumentName && (
+                          <span className="block mt-0.5 font-semibold text-amber-900 dark:text-amber-200">
+                            📄 Documento enviado: {account.crm.submittedDocumentName} (análise em andamento).
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowVerificationModal(true)}
+                      className="flex-1 md:flex-none px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer text-center"
+                    >
+                      Conferir Cadastro & Documento
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Clinician Overview greeting card */}
               <div className="bg-gradient-to-r from-blue-50 to-white dark:from-blue-950/20 dark:to-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="font-poppins font-bold text-lg text-slate-800 dark:text-slate-100 tracking-tight">
-                    Olá, {account.name.split(' ')[0]} ({account.specialty || 'Especialista'})
-                  </h2>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="font-poppins font-bold text-lg text-slate-800 dark:text-slate-100 tracking-tight">
+                      Olá, {account.name.split(' ')[0]} ({account.specialty || 'Especialista'})
+                    </h2>
+                    {isDoctorVerified ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Verificado</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3" />
+                        <span>Em Conferência</span>
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                    {account.crm?.verified
-                      ? `✓ Registro verificado com Conselho correspondente (${getCouncilLabel(account.specialty)}-API).`
-                      : 'Em validação cadastral.'}{' '}
-                    Código de compartilhamento da clínica:{' '}
+                    {isDoctorVerified
+                      ? `✓ Registro regularizado e ativo no conselho (${getCouncilLabel(account.specialty)} ${account.crm?.number}/${account.crm?.uf}).`
+                      : 'Cadastro sob auditoria da equipe RITMA. Envie o documento profissional para liberar pacientes.'}{' '}
+                    Código da clínica:{' '}
                     <strong className="font-extrabold text-blue-500 tracking-widest text-xs">
                       {account.doctorCode}
                     </strong>
                   </p>
                 </div>
-                <button
-                  onClick={handleCopyInviteLink}
-                  className="px-5 py-2 text-xs font-bold bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-md transition-colors"
-                >
-                  Convidar Novo Paciente
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyInviteLink}
+                    className="px-4 py-2 text-xs font-bold bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-md transition-colors cursor-pointer"
+                  >
+                    Convidar Novo Paciente
+                  </button>
+                  <button
+                    onClick={() => setShowVerificationModal(true)}
+                    className="px-3 py-2 text-xs font-bold border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl transition-colors cursor-pointer"
+                    title="Conferir dados e documentos profissionais"
+                  >
+                    {getCouncilLabel(account.specialty)}
+                  </button>
+                </div>
               </div>
+
+              {/* Quick Consultation Launcher (Atendimento Clínico Rápido) */}
+              {patients.length > 0 && (
+                <div className="bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 p-4 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-indigo-500 text-white shrink-0">
+                        <Stethoscope className="w-4 h-4" />
+                      </span>
+                      <div>
+                        <h3 className="font-poppins font-bold text-xs uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+                          Atendimento Clínico Rápido (Consulta em Tela Única)
+                        </h3>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                          Selecione o paciente para abrir o resumo executivo, evolução de 30 dias e farmacovigilância
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('patients')}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      Ver todos ({patients.length})
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                    {patients.slice(0, 3).map((pat) => (
+                      <button
+                        key={pat.acc.id}
+                        type="button"
+                        onClick={() => setShowConsultationMode(pat.acc.id)}
+                        className="p-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl text-left hover:border-indigo-400 hover:shadow-xs transition-all flex items-center justify-between gap-2 cursor-pointer group"
+                      >
+                        <div className="min-w-0">
+                          <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                            {pat.acc.name}
+                          </strong>
+                          <span className="text-[10px] text-slate-400 block truncate">
+                            {pat.pd.dailyLogs.length} logs · {Object.keys(pat.pd.diagnoses).filter(k => pat.pd.diagnoses[k]).map(k => DX[k]?.label).join(', ') || 'Sem DX'}
+                          </span>
+                        </div>
+                        <span className="px-2 py-1 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold shrink-0">
+                          Iniciar
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* IN-APP DOCTOR REVISION PUSH BANNER */}
               {showRevisionBanner && (
@@ -1594,14 +1788,29 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                             E-mail: {x.acc.email} · Solicitado em {fmtDate(x.link.createdAt, 's')}
                           </span>
                         </div>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAuthorizeLink(x.acc.id)}
-                            className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-3 py-1 rounded text-[10px] transition-colors"
-                          >
-                            Autorizar
-                          </button>
+                        <div className="flex items-center gap-1.5">
+                          {isDoctorVerified ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAuthorizeLink(x.acc.id)}
+                              className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-3 py-1 rounded text-[10px] transition-colors cursor-pointer"
+                            >
+                              Autorizar
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                showToast('Conclua a conferência interna e envio de documento do seu CRM para autorizar pacientes.', 'error');
+                                setShowVerificationModal(true);
+                              }}
+                              className="bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-bold px-2.5 py-1 rounded text-[10px] flex items-center gap-1 cursor-pointer"
+                              title="Requer aprovação de conferência interna de CRM"
+                            >
+                              <ShieldAlert className="w-3 h-3 text-amber-500" />
+                              <span>Conferência Pendente</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleRejectLink(x.acc.id)}
@@ -1784,7 +1993,20 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowConsultationMode(pat.acc.id);
+                            }}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 font-bold text-xs rounded-xl border border-indigo-200/50 dark:border-indigo-900/40 flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                            title="Abrir Consulta Clínica em Tela Única"
+                          >
+                            <Stethoscope className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Iniciar Consulta</span>
+                          </button>
+
                           <div className="hidden sm:block">
                             <span className="text-[9px] font-bold text-slate-400 block uppercase mb-1">
                               Dor (14d)
@@ -2062,17 +2284,49 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
                 </button>
               </form>
 
-              {/* CRM indicator status */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 p-5 rounded-2xl shadow-sm text-xs space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                  Status de Credenciamento
-                </span>
-                <span className="text-emerald-500 font-bold block">
-                  ✓ Registro {getCouncilLabel(account.specialty)} {account.crm?.number}/{account.crm?.uf} validado com sucesso.
-                </span>
-                <p className="text-slate-400">
-                  Sua conta de {account.specialty ? account.specialty.toLowerCase() : 'saúde'} possui credenciamento ativo verificado junto ao {getCouncilLabel(account.specialty)}. Seus pacientes podem buscá-lo de forma segura e imediata utilizando o código clínico da sua clínica.
+              {/* CRM indicator status & Document Conference */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-2xl shadow-sm text-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                    Conferência Cadastral & Validação de Documento
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    isDoctorVerified
+                      ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                      : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
+                  }`}>
+                    {isDoctorVerified ? '✓ Regularizado / Aprovado' : '⏳ Pendente de Conferência'}
+                  </span>
+                </div>
+
+                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {isDoctorVerified
+                    ? `Sua conta possui credenciamento verificado junto ao ${getCouncilLabel(account.specialty)} (${account.crm?.number}/${account.crm?.uf}). Seus pacientes podem buscá-lo de forma segura e o aceite de novos vínculos está ativo.`
+                    : `Seu cadastro de ${getCouncilLabel(account.specialty)} está em conferência interna documental. O aceite de novos pacientes permanece pausado até a verificação.`}
                 </p>
+
+                {account.crm?.submittedDocumentName && (
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-850 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <FileCheck className="w-4 h-4 text-indigo-500" />
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {account.crm.submittedDocumentName}
+                      </span>
+                    </div>
+                    <span className="text-slate-400">
+                      {account.crm.submittedAt ? `Enviado em ${account.crm.submittedAt}` : 'Anexado'}
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowVerificationModal(true)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Gerenciar Documento & Conferência Profissional</span>
+                </button>
               </div>
             </div>
           )}
@@ -2123,6 +2377,14 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
 
       {/* RENDER DETAILED DRILL-DOWN PANEL */}
       {renderPatientDrawer()}
+
+      {/* RENDER DOCTOR VERIFICATION & DOCUMENT CONFERENCING MODAL */}
+      <DoctorVerificationModal
+        account={account}
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        onSaveVerification={handleSaveVerification}
+      />
 
       {/* Modern In-App Toast Notification */}
       {toastMessage && (
