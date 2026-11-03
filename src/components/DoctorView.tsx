@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { Account, ChronosData, PeriodicMetric, DailyLog } from '../types';
-import { DX, REFERENCES, QS } from '../data';
+import { Account, ChronosData, DailyLog } from '../types';
+import { DX, REFERENCES } from '../data';
 import {
   calcRisk,
   adherence,
@@ -1270,37 +1270,6 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
               </div>
             )}
 
-            {/* Periodic Metrics charts inside drill down */}
-            {p.pd.periodicMetrics.length > 0 && (
-              <div className="space-y-4">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block border-b pb-1">
-                  Evolução de Escores Científicos
-                </span>
-                {(() => {
-                  const mTypes: string[] = Array.from(new Set(p.pd.periodicMetrics.map((m) => m.type)));
-                  return mTypes.map((type) => {
-                    const qConf = QS[type];
-                    if (!qConf) return null;
-                    const pts = p.pd.periodicMetrics
-                      .filter((m) => m.type === type)
-                      .slice(-10)
-                      .map((m) => ({ date: m.date, score: m.score }));
-
-                    return (
-                      <div key={type} className="space-y-2">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                          {qConf.name.split(':')[0]}
-                        </span>
-                        <div className="border border-slate-50 dark:border-slate-850 p-4 rounded-xl bg-white dark:bg-slate-900">
-                          <BandLineChart points={pts} bands={qConf.bands} max={qConf.max} />
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            )}
-
             {/* Correlations */}
             {corrItems.length > 0 && (
               <div className="bg-amber-50/10 border border-amber-500/20 p-4 rounded-xl space-y-2 text-xs">
@@ -1402,7 +1371,7 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
             { id: 'patients', icon: Users, label: 'Fichas de Pacientes' },
             { id: 'analysis', icon: PieChart, label: 'Estatísticas Coorte' },
             { id: 'science', icon: FlaskConical, label: 'Bulas & Moléculas Clínicas', badge: 'Médico' },
-            { id: 'instruments', icon: ClipboardList, label: 'Citações de Referência' },
+            { id: 'instruments', icon: ClipboardList, label: 'Bibliografia em Revisão' },
             { id: 'settings', icon: Settings, label: `Clínica & ${getCouncilLabel(account.specialty)}` },
             { id: 'news', icon: Sparkles, label: 'Vem Aí', badge: 'Em breve' }
           ].map((t) => {
@@ -2114,53 +2083,17 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
             <div className="space-y-6">
               <div>
                 <h2 className="font-poppins font-bold text-xl text-slate-800 dark:text-slate-100 tracking-tight">
-                  Tabelas de Validação e Evidência Médica
+                  Referências Bibliográficas
                 </h2>
                 <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">
-                  Frequências clínicas e questionários validados integrados nativamente.
+                  Referências associadas ao conteúdo do aplicativo, em revisão.
                 </p>
-              </div>
-
-              {/* Roster list */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm p-4 sm:p-5">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead>
-                      <tr className="border-b border-slate-100 dark:border-slate-800 font-bold text-slate-400 uppercase tracking-wider">
-                        <th className="py-2.5">Diagnóstico Reumatológico</th>
-                        <th className="py-2.5">Instrumento Validado</th>
-                        <th className="py-2.5">Frequência Clínico</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
-                      {Object.keys(DX).map((key) => {
-                        const conf = DX[key];
-                        return (
-                          <tr key={key} className="py-2">
-                            <td className="py-2.5 font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                              <span className="w-9 h-5 flex-shrink-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-[9px] font-black tracking-widest text-slate-600 dark:text-slate-400 rounded border border-slate-200 dark:border-slate-750 font-sans">
-                                {conf.icon}
-                              </span>
-                              <span>{conf.label}</span>
-                            </td>
-                            <td className="py-2.5">
-                              <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                {conf.instruments}
-                              </span>
-                            </td>
-                            <td className="py-2.5 text-slate-400 font-bold">{conf.freq}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
               </div>
 
               {/* Complete References database list */}
               <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-4">
                 <h3 className="font-poppins font-black text-slate-800 dark:text-slate-100 text-sm">
-                  📚 Base de Evidências Bibliográficas (56 Artigos)
+                  📚 Referências bibliográficas do aplicativo
                 </h3>
                 <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 divide-y divide-slate-50 dark:divide-slate-850 text-xs">
                   {REFERENCES.map((r) => (

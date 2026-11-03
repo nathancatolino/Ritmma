@@ -8,13 +8,19 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onA
 import {
   getFirestore,
   doc,
+  collection,
   getDocFromServer,
   setDoc,
   getDoc,
-  onSnapshot
+  getDocs,
+  query,
+  where,
+  deleteDoc,
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Account, PatientData, ChronosData } from './types';
+import { Account, PatientData, LinkRecord } from './types';
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -23,6 +29,14 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+function removeUndefined(value: any): any {
+  if (Array.isArray(value)) return value.map(removeUndefined);
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).map(([key, item]) => [key, removeUndefined(item)]));
+  }
+  return value;
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -39,14 +53,6 @@ export interface FirestoreErrorInfo {
   path: string | null;
   authInfo: {
     userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
   };
 }
 
@@ -54,15 +60,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
+      userId: auth.currentUser?.uid
     },
     operationType,
     path
@@ -105,14 +103,17 @@ export async function logOutFromFirebase(): Promise<void> {
 
 // Sync specific patient dataset to Firestore
 export async function syncPatientDataToCloud(patientId: string, pData: PatientData): Promise<boolean> {
-  const path = `patientData/${patientId}`;
+  if (!auth.currentUser || auth.currentUser.uid !== patientId) return false;
   try {
+    const { clinicalPhotos: storedPhotos, ...rest } = pData;
+    const clinicalPhotos = storedPhotos?.map(({ thumbnailDataUrl: _legacyThumbnail, ...photo }) => photo);
     const payload = {
-      ...pData,
+      ...rest,
+      ...(clinicalPhotos ? { clinicalPhotos } : {}),
       patientId,
       updatedAt: new Date().toISOString()
     };
-    await setDoc(doc(db, 'patientData', patientId), payload, { merge: true });
+    await setDoc(doc(db, 'patientData', patientId), removeUndefined(payload), { merge: true });
     return true;
   } catch (err) {
     console.warn(`Could not sync patientData to cloud:`, err);
@@ -122,13 +123,13 @@ export async function syncPatientDataToCloud(patientId: string, pData: PatientDa
 
 // Sync account profile to Firestore
 export async function syncAccountToCloud(account: Account): Promise<boolean> {
-  const path = `accounts/${account.id}`;
+  if (!auth.currentUser || auth.currentUser.uid !== account.id) return false;
   try {
     const payload = {
       ...account,
       updatedAt: new Date().toISOString()
     };
-    await setDoc(doc(db, 'accounts', account.id), payload, { merge: true });
+    await setDoc(doc(db, 'accounts', account.id), removeUndefined(payload), { merge: true });
     return true;
   } catch (err) {
     console.warn(`Could not sync account to cloud:`, err);
@@ -136,8 +137,48 @@ export async function syncAccountToCloud(account: Account): Promise<boolean> {
   }
 }
 
+export async function syncLinkToCloud(link: LinkRecord): Promise<boolean> {
+  const userId = auth.currentUser?.uid;
+  if (!userId || (userId !== link.patientId && userId !== link.doctorId)) return false;
+  try {
+    await setDoc(doc(db, 'links', `${link.patientId}_${link.doctorId}`), link, { merge: true });
+    return true;
+  } catch {
+    console.warn('Could not sync care link to cloud.');
+    return false;
+  }
+}
+
+export async function deleteLinkFromCloud(patientId: string, doctorId: string): Promise<boolean> {
+  const userId = auth.currentUser?.uid;
+  if (!userId || (userId !== patientId && userId !== doctorId)) return false;
+  try {
+    await deleteDoc(doc(db, 'links', `${patientId}_${doctorId}`));
+    return true;
+  } catch {
+    console.warn('Could not remove care link from cloud.');
+    return false;
+  }
+}
+
+export async function fetchLinksForUser(userId: string): Promise<LinkRecord[]> {
+  if (!auth.currentUser || auth.currentUser.uid !== userId) return [];
+  try {
+    const [asPatient, asDoctor] = await Promise.all([
+      getDocs(query(collection(db, 'links'), where('patientId', '==', userId))),
+      getDocs(query(collection(db, 'links'), where('doctorId', '==', userId)))
+    ]);
+    const records = [...asPatient.docs, ...asDoctor.docs];
+    return Array.from(new Map(records.map((snapshot) => [snapshot.id, snapshot.data() as LinkRecord] as const)).values());
+  } catch {
+    console.warn('Could not fetch care links from cloud.');
+    return [];
+  }
+}
+
 // Fetch remote patient dataset if available
 export async function fetchPatientDataFromCloud(patientId: string): Promise<PatientData | null> {
+  if (!auth.currentUser) return null;
   try {
     const snap = await getDoc(doc(db, 'patientData', patientId));
     if (snap.exists()) {
@@ -148,4 +189,55 @@ export async function fetchPatientDataFromCloud(patientId: string): Promise<Pati
     console.warn(`Could not fetch cloud data for ${patientId}:`, err);
     return null;
   }
+}
+
+export async function fetchAccountFromCloud(userId: string): Promise<Account | null> {
+  if (!auth.currentUser) return null;
+  try {
+    const snap = await getDoc(doc(db, 'accounts', userId));
+    return snap.exists() ? snap.data() as Account : null;
+  } catch (err) {
+    console.warn('Could not fetch signed-in account from cloud.');
+    return null;
+  }
+}
+
+export async function fetchDoctorProfilesForAdmin(): Promise<Account[]> {
+  if (!auth.currentUser) throw new Error('Faça login para continuar.');
+  const token = await auth.currentUser.getIdTokenResult();
+  if (token.claims.admin !== true) throw new Error('Acesso restrito à administração.');
+  const result = await getDocs(query(collection(db, 'accounts'), where('role', '==', 'doctor')));
+  return result.docs.map((item) => item.data() as Account);
+}
+
+export async function fetchProfessionalReviewsForAdmin(): Promise<Array<Record<string, unknown>>> {
+  if (!auth.currentUser) throw new Error('Faça login para continuar.');
+  const token = await auth.currentUser.getIdTokenResult();
+  if (token.claims.admin !== true) throw new Error('Acesso restrito à administração.');
+  const result = await getDocs(query(collection(db, 'professionalReviews')));
+  return result.docs.map((item) => ({ id: item.id, ...item.data() }));
+}
+
+export async function reviewDoctorProfile(account: Account, decision: 'verified' | 'failed', reason = ''): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Faça login para continuar.');
+  const token = await user.getIdTokenResult();
+  if (token.claims.admin !== true) throw new Error('Acesso restrito à administração.');
+  const approved = decision === 'verified';
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'accounts', account.id), {
+    'crm.status': decision,
+    'crm.verified': approved,
+    'crm.rejectionReason': approved ? '' : reason.trim(),
+    'crm.verifiedAt': approved ? new Date().toISOString() : null
+  });
+  batch.set(doc(collection(db, 'professionalReviews')), {
+    professionalId: account.id,
+    professionalEmail: account.email,
+    decision,
+    reason: reason.trim(),
+    reviewerUid: user.uid,
+    createdAt: serverTimestamp()
+  });
+  await batch.commit();
 }

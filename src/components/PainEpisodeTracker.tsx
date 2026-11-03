@@ -109,8 +109,7 @@ export const PainEpisodeTracker: React.FC<PainEpisodeTrackerProps> = ({
     gender: account.gender || null,
     hormoneRelevant: false,
     baseline: null,
-    periodicMetrics: [],
-    flareAlerts: [],
+        flareAlerts: [],
     dailyLogs: [],
     painEpisodes: []
   };

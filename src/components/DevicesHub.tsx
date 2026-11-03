@@ -66,8 +66,7 @@ export const DevicesHub: React.FC<DevicesHubProps> = ({
     gender: account.gender || null,
     hormoneRelevant: false,
     baseline: null,
-    periodicMetrics: [],
-    flareAlerts: [],
+        flareAlerts: [],
     dailyLogs: []
   };
 

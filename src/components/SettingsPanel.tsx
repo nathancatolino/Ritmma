@@ -83,7 +83,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     gender: account.gender || null,
     hormoneRelevant: false,
     baseline: null,
-    periodicMetrics: [],
     flareAlerts: [],
     dailyLogs: []
   };
@@ -632,7 +631,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <Heart className="w-4 h-4 text-rose-500" /> Condições Monitoradas & Fatores Clínicos
             </h3>
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              Ao selecionar uma condição, o RITMA habilita os módulos analíticos específicos e questionários validados correspondentes (ex: FIQr, RAPID3, WOMAC, HIT-6, CSI-7).
+              Ao selecionar uma condição, o RITMA organiza o diário e os recursos disponíveis para acompanhamento dos sintomas.
             </p>
           </div>
 
@@ -1124,10 +1123,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <div className="p-4 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="space-y-0.5">
               <strong className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <BookOpen className="w-4 h-4 text-teal-500" /> Base de Evidências Clínicas Validadas
+                <BookOpen className="w-4 h-4 text-teal-500" /> Referências Bibliográficas
               </strong>
               <p className="text-[11px] text-slate-400">
-                Mais de 55 estudos científicos peer-reviewed que validam as métricas, questionários e dicas do RITMA.
+                Referências bibliográficas associadas ao conteúdo do aplicativo. A correspondência entre fontes e afirmações está em revisão.
               </p>
             </div>
             <button

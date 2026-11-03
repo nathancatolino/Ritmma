@@ -7,9 +7,8 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { DailyLog, PatientData, PeriodicMetric } from '../types';
+import { DailyLog } from '../types';
 import { todayISO, fmtDate } from '../utils';
-import { PatientMetrics } from './PatientMetrics';
 import { 
   Brain, 
   Activity, 
@@ -34,20 +33,16 @@ import {
 } from 'lucide-react';
 
 interface MentalHealthSupportProps {
-  patientData: PatientData;
   logs: DailyLog[];
   onSaveLog: (log: DailyLog) => void;
-  onSaveMetric: (metric: PeriodicMetric) => void;
 }
 
 export const MentalHealthSupport: React.FC<MentalHealthSupportProps> = ({
-  patientData,
   logs,
-  onSaveLog,
-  onSaveMetric
+  onSaveLog
 }) => {
   // Tabs for the Mental Health panel
-  type SubTab = 'tools' | 'tracker' | 'questionnaires' | 'coping';
+  type SubTab = 'tools' | 'tracker' | 'coping';
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('tools');
 
   // --- Date state for Daily Stress Tracker ---
@@ -333,18 +328,6 @@ export const MentalHealthSupport: React.FC<MentalHealthSupportProps> = ({
           Estratégias de Enfrentamento (TCC)
         </button>
 
-        <button
-          type="button"
-          onClick={() => { setBreathingActive(false); setActiveSubTab('questionnaires'); }}
-          className={`flex items-center gap-2 py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-            activeSubTab === 'questionnaires'
-              ? 'border-teal-500 text-teal-600 dark:text-teal-400'
-              : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Activity className="w-4 h-4" />
-          Escalas & Escores Clínicos
-        </button>
       </div>
 
       {/* --- TAB CONTENT: BREATHING TOOLS --- */}
@@ -838,13 +821,6 @@ export const MentalHealthSupport: React.FC<MentalHealthSupportProps> = ({
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* --- TAB CONTENT: PATIENT METRICS / CLINICAL QUESTIONNAIRES --- */}
-      {activeSubTab === 'questionnaires' && (
-        <div className="animate-fade-in bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-          <PatientMetrics patientData={patientData} onSaveMetric={onSaveMetric} />
         </div>
       )}
 

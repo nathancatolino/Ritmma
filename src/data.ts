@@ -7,9 +7,6 @@ export interface DiagnosisConfig {
   label: string;
   icon: string;
   color: string;
-  instruments: string;
-  freq: string;
-  q?: string;
   desc: string;
   comingSoon?: boolean;
 }
@@ -19,139 +16,96 @@ export const DX: Record<string, DiagnosisConfig> = {
     label: 'Fibromialgia (Síndrome Fibromiálgica)',
     icon: 'FM',
     color: 'rose',
-    instruments: 'FIQr / CSI-7',
-    freq: 'Mensal',
-    q: 'fibromialgia',
     desc: 'Dor difusa generalizada, fadiga crônica, sono não reparador e hipersensibilidade.'
   },
   ar: {
     label: 'Artrite Reumatoide',
     icon: 'AR',
     color: 'blue',
-    instruments: 'RAPID3 / HAQ-DI',
-    freq: 'Quinzenal',
-    q: 'ar',
     desc: 'Poliartrite inflamatória periférica, inchaço articular e rigidez matinal prolongada.'
   },
   espondiloartrite: {
     label: 'Espondiloartrite Axial / Espondilite Anquilosante',
     icon: 'EA',
     color: 'violet',
-    instruments: 'ASDAS / BASDAI',
-    freq: 'Mensal',
-    q: 'espondiloartrite',
     desc: 'Dor lombar inflamatória crônica, rigidez na coluna e pelve, entesite e uveíte.'
   },
   psoriasica: {
     label: 'Artrite Psoriásica',
     icon: 'AP',
     color: 'rose',
-    instruments: 'PsAID-12 / RAPID3',
-    freq: 'Quinzenal',
-    q: 'psoriasica',
     desc: 'Dor e inflamação articular associada a placas na pele, alterações nas unhas e dactilite.'
   },
   les: {
     label: 'Lúpus Eritematoso Sistêmico (LES)',
     icon: 'LES',
     color: 'violet',
-    instruments: 'Lupus Impact Tracker (LIT)',
-    freq: 'Mensal',
-    q: 'les',
     desc: 'Doença autoimune multissistêmica com dor articular, erupções cutâneas e fadiga intensa.'
   },
   sjogren: {
     label: 'Síndrome de Sjögren',
     icon: 'SS',
     color: 'blue',
-    instruments: 'ESSPRI / ESSDAI',
-    freq: 'Quinzenal',
-    q: 'sjogren',
     desc: 'Secura persistente em olhos e boca, fadiga crônica de fundo e dores articulares.'
   },
   osteoartrite: {
     label: 'Osteoartrite (Artrose)',
     icon: 'OA',
     color: 'orange',
-    instruments: 'WOMAC / KOOS',
-    freq: 'Mensal',
-    q: 'osteoartrite',
     desc: 'Degradação da cartilagem articular e dor mecânica relacionada a carga e sobrecarga.'
   },
   gota: {
     label: 'Gota e Artropatias Microcristalinas',
     icon: 'GT',
     color: 'rose',
-    instruments: 'RAPID3',
-    freq: 'Quinzenal',
     desc: 'Crises inflamatórias agudas de dor articular por deposição de cristais de urato.'
   },
   polimialgia: {
     label: 'Polimialgia Reumática',
     icon: 'PMR',
     color: 'amber',
-    instruments: 'HAQ-DI',
-    freq: 'Mensal',
     desc: 'Dor intensa e rigidez em ombros, pescoço e quadris com resposta a glicocorticoide.'
   },
   esclerose_sistemica: {
     label: 'Esclerose Sistêmica (Esclerodermia)',
     icon: 'ES',
     color: 'indigo',
-    instruments: 'SHAQ',
-    freq: 'Mensal',
     desc: 'Fenômeno de Raynaud, espessamento da pele e manifestações microvasculares.'
   },
   fadiga_cronica: {
     label: 'Síndrome da Fadiga Crônica (EM/SFC)',
     icon: 'SFC',
     color: 'teal',
-    instruments: 'FACIT-Fatigue',
-    freq: 'Quinzenal',
     desc: 'Esgotamento físico e mental desproporcional, mal-estar pós-esforço e sono não reparador.'
   },
   hipermobilidade: {
     label: 'Síndrome de Hipermobilidade / Ehlers-Danlos',
     icon: 'SED',
     color: 'sky',
-    instruments: 'Beighton / BPI',
-    freq: 'Mensal',
     desc: 'Frouxidão ligamentar, instabilidade articular recorrente e dor musculoesquelética difusa.'
   },
   miofascial: {
     label: 'Síndrome Dolorosa Miofascial',
     icon: 'SDM',
     color: 'orange',
-    instruments: 'Brief Pain Inventory (BPI)',
-    freq: 'Mensal',
-    q: 'miofascial',
     desc: 'Tensão muscular crônica localizada com bandas tensas e pontos-gatilho dolorosos.'
   },
   migrainea: {
     label: 'Enxaqueca Crônica e Cefaleias',
     icon: 'MIG',
     color: 'amber',
-    instruments: 'HIT-6 / MIDAS',
-    freq: 'Semanal',
-    q: 'migrainea',
     desc: 'Crises pulsáteis de dor de cabeça, hipersensibilidade à luz, som e náuseas.'
   },
   endometriose: {
     label: 'Dor Pélvica Crônica / Endometriose',
     icon: 'END',
     color: 'rose',
-    instruments: 'EHP-5 / EHP-30',
-    freq: 'Mensal',
-    q: 'endometriose',
     desc: 'Dor pélvica profunda, cólicas menstruais intensas e hipersensibilidade visceral.'
   },
   sii: {
     label: 'Síndrome do Intestino Irritável (SII)',
     icon: 'SII',
     color: 'amber',
-    instruments: 'IBS-SSS / IBS-QoL',
-    freq: 'Quinzenal',
-    q: 'sii',
     desc: 'Desconforto e inchaço abdominal com alteração do ritmo intestinal e eixo cérebro-intestino.'
   }
 };
@@ -293,402 +247,6 @@ export const DIARY = {
     mood: 'Humor e estresse são moduladores da dor: não significam que a dor seja "psicológica".',
     cycle: 'Se menstrua, registre fase/sintomas. No climatério, registre ondas de calor, sono, secura, humor.'
   } as Record<string, string>
-};
-
-export const SC = {
-  nrs010: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
-  freq04: ['0 Nunca', '1 Vários dias', '2 Mais da metade', '3 Quase todo dia'],
-  dif03: ['0 Sem dificuldade', '1 Com alguma', '2 Com muita', '3 Incapaz'],
-  csi04: ['0 Nunca', '1 Raramente', '2 Às vezes', '3 Frequente', '4 Sempre'],
-  lit04: ['0 Nunca', '1 Raramente', '2 Às vezes', '3 Frequente', '4 Sempre'],
-  ehp04: ['0 Nunca', '1 Raramente', '2 Às vezes', '3 Frequente', '4 Sempre'],
-  womac04: ['0 Nenhuma', '1 Leve', '2 Moderada', '3 Intensa', '4 Extrema'],
-  hit6: ['Nunca', 'Raramente', 'Às vezes', 'Muitas vezes', 'Sempre'],
-  vas100: ['0', '25', '50', '75', '100']
-};
-
-export interface Band {
-  upTo: number;
-  color: string;
-  label: string;
-}
-
-export interface QuestionnaireItemObject {
-  t: string;
-  scale: string[];
-  vals?: number[];
-}
-
-export interface QuestionnaireConfig {
-  name: string;
-  ref: string;
-  max: number;
-  min?: number;
-  dec: number;
-  cutoff?: number;
-  scale: string[];
-  vals?: number[];
-  items: (string | QuestionnaireItemObject)[];
-  compute: (v: number[]) => number;
-  bands: Band[];
-}
-
-const BAND3 = (a: number, b: number, max: number, la: string, lb: string, lc: string): Band[] => [
-  { upTo: a, color: '#10b981', label: la },
-  { upTo: b, color: '#f59e0b', label: lb },
-  { upTo: max, color: '#f43f5e', label: lc }
-];
-
-const PSAID_W = [0.176, 0.145, 0.116, 0.116, 0.116, 0.086, 0.085, 0.046, 0.046, 0.038, 0.015, 0.015];
-
-const sum = (a: number[]) => a.reduce((x, y) => x + (y || 0), 0);
-const mean = (a: number[]) => a.length ? sum(a) / a.length : 0;
-
-export const QS: Record<string, QuestionnaireConfig> = {
-  fibromialgia: {
-    name: 'Acompanhamento de Sintomas da Fibromialgia',
-    ref: 'Bennett RM, et al. The Revised FIQ (FIQR). Arthritis Res Ther. 2009.',
-    max: 100,
-    dec: 0,
-    scale: SC.nrs010,
-    items: [
-      'Escovar ou pentear o cabelo',
-      'Caminhar continuamente por 20 minutos',
-      'Preparar uma refeição',
-      'Aspirar, esfregar o chão ou varrer',
-      'Levantar e carregar uma sacola de compras cheia',
-      'Subir um lance de escadas',
-      'Trocar a roupa de cama',
-      'Ficar sentado(a) em uma cadeira por 45 minutos',
-      'Fazer compras no supermercado',
-      'A fibromialgia me impediu de alcançar meus objetivos da semana',
-      'Senti que não consegui controlar minha fibromialgia',
-      'Dor',
-      'Energia (cansaço / falta de energia)',
-      'Rigidez muscular',
-      'Qualidade do sono',
-      'Depressão',
-      'Memória / concentração (fibrofog)',
-      'Ansiedade',
-      'Sensibilidade ao toque',
-      'Equilíbrio',
-      'Sensibilidade a barulhos, luzes, cheiros ou frio'
-    ],
-    compute: (v: number[]) => {
-      return sum(v.slice(0, 9)) / 3 + sum(v.slice(9, 11)) + sum(v.slice(11, 21)) / 2;
-    },
-    bands: BAND3(38, 58, 100, 'Leve', 'Moderado', 'Grave')
-  },
-  ar: {
-    name: 'Mobilidade & Dor da Artrite Reumatoide',
-    ref: 'Pincus T, et al. RAPID3. J Rheumatol. 2008.',
-    max: 30,
-    dec: 1,
-    scale: SC.dif03,
-    items: [
-      'Vestir-se, incluindo amarrar cadarços e abotoar',
-      'Levantar-se de uma cadeira sem apoio dos braços',
-      'Comer, incluindo cortar alimentos e segurar o copo',
-      'Caminhar em terreno plano ao ar livre',
-      'Tomar banho e secar-se',
-      'Dobrar-se e pegar um objeto no chão',
-      'Abrir torneiras ou girar maçanetas',
-      'Subir cinco ou mais degraus',
-      'Fazer compras (carregar sacolas, usar dinheiro)',
-      'Atividades de lazer ou esportes que você gostava',
-      { t: 'Intensidade da sua dor nas últimas semanas (0 a 10)', scale: SC.nrs010 },
-      { t: 'No geral, como está sua saúde por causa da artrite? (0 muito bem a 10 muito mal)', scale: SC.nrs010 }
-    ],
-    compute: (v: number[]) => {
-      return mean(v.slice(0, 10)) * 10 / 3 + v[10] + v[11];
-    },
-    bands: [
-      { upTo: 3, color: '#10b981', label: 'Remissão' },
-      { upTo: 6, color: '#0d9488', label: 'Baixa' },
-      { upTo: 12, color: '#f59e0b', label: 'Moderada' },
-      { upTo: 30, color: '#f43f5e', label: 'Alta' }
-    ]
-  },
-  espondiloartrite: {
-    name: 'Rigidez & Dor da Espondiloartrite',
-    ref: 'Garrett S, et al. BASDAI. J Rheumatol. 1994.',
-    max: 10,
-    dec: 1,
-    scale: SC.nrs010,
-    items: [
-      'Fadiga ou cansaço geral',
-      'Dor no pescoço, costas ou quadril',
-      'Dor ou inchaço em outras articulações',
-      'Desconforto em áreas sensíveis ao toque',
-      'Intensidade da rigidez ao acordar de manhã',
-      'Duração da rigidez matinal (0 nenhuma, 10 duas horas ou mais)'
-    ],
-    compute: (v: number[]) => {
-      return (v[0] + v[1] + v[2] + v[3] + (v[4] + v[5]) / 2) / 5;
-    },
-    bands: [
-      { upTo: 3.9, color: '#10b981', label: 'Sob controle' },
-      { upTo: 10, color: '#f43f5e', label: 'Ativa (4 ou mais)' }
-    ]
-  },
-  sjogren: {
-    name: 'Nível de Secura & Fadiga (Sjögren)',
-    ref: 'Seror R, et al. ESSPRI. Ann Rheum Dis. 2011.',
-    max: 10,
-    dec: 1,
-    scale: SC.nrs010,
-    items: [
-      'Secura (boca, olhos, pele, outras) nas últimas 2 semanas',
-      'Fadiga (física e mental)',
-      'Dor (articulações ou músculos)'
-    ],
-    compute: (v: number[]) => {
-      return mean(v);
-    },
-    bands: [
-      { upTo: 4.9, color: '#10b981', label: 'Aceitável' },
-      { upTo: 10, color: '#f43f5e', label: 'Alto (5 ou mais)' }
-    ]
-  },
-  psoriasica: {
-    name: 'Impacto Diário da Artrite Psoriásica',
-    ref: 'Gossec L, et al. PsAID. Ann Rheum Dis. 2014.',
-    max: 10,
-    dec: 1,
-    scale: SC.nrs010,
-    items: [
-      'Dor',
-      'Fadiga ou cansaço',
-      'Problemas de pele (psoríase)',
-      'Capacidade de trabalhar ou de lazer',
-      'Capacidade funcional (atividades físicas diárias)',
-      'Desconforto físico geral (rigidez, inchaço, sensibilidade)',
-      'Qualidade do sono',
-      'Capacidade de lidar e se adaptar à doença',
-      'Ansiedade, medo ou preocupação',
-      'Vergonha ou constrangimento',
-      'Participação em atividades sociais',
-      'Tristeza ou depressão'
-    ],
-    compute: (v: number[]) => {
-      let s = 0;
-      for (let i = 0; i < 12; i++) s += v[i] * PSAID_W[i];
-      return s;
-    },
-    bands: [
-      { upTo: 4, color: '#10b981', label: 'Aceitável (PASS)' },
-      { upTo: 6, color: '#f59e0b', label: 'Moderado' },
-      { upTo: 10, color: '#f43f5e', label: 'Alto' }
-    ]
-  },
-  les: {
-    name: 'Qualidade de Vida no Lúpus',
-    ref: 'Jolly M, et al. Lupus Impact Tracker. Arthritis Care Res. 2014.',
-    max: 40,
-    dec: 0,
-    scale: SC.lit04,
-    items: [
-      'O lúpus limitou suas atividades físicas (caminhar, subir escadas, carregar objetos)?',
-      'Sentiu dor ou desconforto nas articulações ou músculos por causa do lúpus?',
-      'Sentiu fadiga ou cansaço intenso que interferiu nas atividades?',
-      'O lúpus afetou a qualidade do seu sono?',
-      'Sentiu-se emocionalmente abalado(a) (ansioso, deprimido, irritado) por causa do lúpus?',
-      'Teve dificuldades de concentração, memória ou raciocínio ("névoa do lúpus")?',
-      'O lúpus interferiu em trabalhar, estudar ou tarefas domésticas?',
-      'O lúpus limitou sua participação social, familiar ou de lazer?',
-      'Precisou de ajuda de outras pessoas para atividades que costuma fazer sozinho(a)?',
-      'De forma geral, o lúpus afetou negativamente sua qualidade de vida?'
-    ],
-    compute: (v: number[]) => sum(v),
-    bands: BAND3(13, 26, 40, 'Baixo', 'Moderado', 'Alto')
-  },
-  osteoartrite: {
-    name: 'Mobilidade de Joelho & Quadril (Osteoartrite)',
-    ref: 'Bellamy N, et al. WOMAC. J Rheumatol. 1988.',
-    max: 96,
-    dec: 0,
-    scale: SC.womac04,
-    items: [
-      'Dor ao caminhar em superfície plana',
-      'Dor ao subir ou descer escadas',
-      'Dor à noite, ao deitar ou dormir',
-      'Dor ao sentar ou deitar em repouso',
-      'Dor ao permanecer em pé',
-      'Rigidez ao acordar pela manhã',
-      'Rigidez mais tarde, após ficar parado(a)',
-      'Dificuldade para descer escadas',
-      'Dificuldade para subir escadas',
-      'Dificuldade para levantar após ficar sentado(a)',
-      'Dificuldade para permanecer em pé',
-      'Dificuldade para se inclinar em direção ao chão',
-      'Dificuldade para caminhar em superfície plana',
-      'Dificuldade para entrar ou sair do carro',
-      'Dificuldade para fazer compras',
-      'Dificuldade para calçar meias',
-      'Dificuldade para levantar da cama',
-      'Dificuldade para tirar meias',
-      'Dificuldade para permanecer deitado(a) confortável',
-      'Dificuldade para entrar ou sair do banho',
-      'Dificuldade para permanecer sentado(a)',
-      'Dificuldade para levantar do vaso sanitário',
-      'Dificuldade em tarefas domésticas pesadas',
-      'Dificuldade em tarefas domésticas leves'
-    ],
-    compute: (v: number[]) => sum(v),
-    bands: BAND3(32, 64, 96, 'Leve', 'Moderada', 'Intensa')
-  },
-  miofascial: {
-    name: 'Intensidade da Dor Corporal (Miofascial)',
-    ref: 'Cleeland CS, Ryan KM. Brief Pain Inventory. Ann Acad Med Singapore. 1994.',
-    max: 10,
-    dec: 1,
-    scale: SC.nrs010,
-    items: [
-      'Pior dor nas últimas 24 horas',
-      'Menor dor nas últimas 24 horas',
-      'Dor em média nas últimas 24 horas',
-      'Dor agora'
-    ],
-    compute: (v: number[]) => mean(v),
-    bands: [
-      { upTo: 4, color: '#10b981', label: 'Leve' },
-      { upTo: 6, color: '#f59e0b', label: 'Moderada' },
-      { upTo: 10, color: '#f43f5e', label: 'Intensa' }
-    ]
-  },
-  migrainea: {
-    name: 'Impacto Diário da Enxaqueca',
-    ref: 'Kosinski M, et al. HIT-6. Qual Life Res. 2003.',
-    max: 78,
-    min: 36,
-    dec: 0,
-    scale: SC.hit6,
-    vals: [6, 8, 10, 11, 13],
-    items: [
-      'Quando tem dor de cabeça, com que frequência a dor é forte?',
-      'Com que frequência a dor de cabeça limita suas atividades diárias (trabalho, escola, casa, social)?',
-      'Quando tem dor de cabeça, com que frequência você deseja se deitar?',
-      'Nas últimas 4 semanas, com que frequência se sentiu cansado(a) demais para trabalhar por causa da dor de cabeça?',
-      'Nas últimas 4 semanas, com que frequência se sentiu farto(a) ou irritado(a) por causa da dor de cabeça?',
-      'Nas últimas 4 semanas, com que frequência a dor de cabeça limitou sua concentração?'
-    ],
-    compute: (v: number[]) => sum(v),
-    bands: [
-      { upTo: 49, color: '#10b981', label: 'Pouco ou nenhum' },
-      { upTo: 55, color: '#0d9488', label: 'Algum' },
-      { upTo: 59, color: '#f59e0b', label: 'Substancial' },
-      { upTo: 78, color: '#f43f5e', label: 'Severo' }
-    ]
-  },
-  sii: {
-    name: 'Desconforto Intestinal (SII)',
-    ref: 'Francis CY, et al. IBS-SSS. Aliment Pharmacol Ther. 1997.',
-    max: 500,
-    dec: 0,
-    scale: SC.vas100,
-    vals: [0, 25, 50, 75, 100],
-    items: [
-      'Quão intensa foi sua dor abdominal?',
-      'Em quantos dos últimos 10 dias você teve dor abdominal? (cada dia conta como 10)',
-      'Quão intensa foi a distensão ou inchaço abdominal?',
-      'Quão insatisfeito(a) está com seu hábito intestinal?',
-      'Quanto a SII interferiu na sua vida em geral?'
-    ],
-    compute: (v: number[]) => sum(v),
-    bands: [
-      { upTo: 75, color: '#10b981', label: 'Remissão' },
-      { upTo: 175, color: '#0d9488', label: 'Leve' },
-      { upTo: 300, color: '#f59e0b', label: 'Moderada' },
-      { upTo: 500, color: '#f43f5e', label: 'Grave' }
-    ]
-  },
-  endometriose: {
-    name: 'Impacto Diário da Endometriose',
-    ref: 'Jones G, et al. EHP-30 / EHP-5. Qual Life Res. 2004.',
-    max: 100,
-    dec: 0,
-    scale: SC.ehp04,
-    items: [
-      'A dor da endometriose afetou suas atividades habituais (casa, trabalho, lazer)?',
-      'Sentiu-se incapaz de lidar com os sintomas da endometriose?',
-      'Sentiu-se deprimida ou para baixo por causa da endometriose?',
-      'Sentiu que não recebeu apoio suficiente das pessoas próximas?',
-      'A endometriose afetou a forma como você se vê (autoimagem)?'
-    ],
-    compute: (v: number[]) => mean(v) * 25,
-    bands: BAND3(33, 66, 100, 'Baixo', 'Moderado', 'Alto')
-  },
-  PHQ9: {
-    name: 'Humor & Disposição',
-    ref: 'Kroenke K, et al. PHQ-9. J Gen Intern Med. 2001.',
-    max: 27,
-    dec: 0,
-    scale: SC.freq04,
-    items: [
-      'Pouco interesse ou prazer em fazer as coisas',
-      'Sentir-se para baixo, deprimido(a) ou sem esperança',
-      'Dificuldade para dormir ou dormir demais',
-      'Sentir-se cansado(a) ou com pouca energia',
-      'Pouco apetite ou comer demais',
-      'Sentir-se mal consigo mesmo(a) ou um fracasso',
-      'Dificuldade de concentração',
-      'Lentidão ou agitação perceptível por outros',
-      'Pensamentos de que seria melhor estar morto(a) ou se machucar'
-    ],
-    compute: (v: number[]) => sum(v),
-    bands: [
-      { upTo: 4, color: '#10b981', label: 'Estável / Normal' },
-      { upTo: 9, color: '#0d9488', label: 'Flutuação Leve' },
-      { upTo: 14, color: '#f59e0b', label: 'Flutuação Moderada' },
-      { upTo: 19, color: '#f97316', label: 'Atenção Necessária' },
-      { upTo: 27, color: '#f43f5e', label: 'Sinal de Alerta / Severe' }
-    ]
-  },
-  GAD7: {
-    name: 'Nível de Ansiedade',
-    ref: 'Spitzer RL, et al. GAD-7. Arch Intern Med. 2006.',
-    max: 21,
-    dec: 0,
-    scale: SC.freq04,
-    items: [
-      'Nervoso(a), ansioso(a) ou no limite',
-      'Não conseguir parar ou controlar preocupações',
-      'Preocupar-se demais com diferentes coisas',
-      'Dificuldade para relaxar',
-      'Tão inquieto(a) que custa ficar parado(a)',
-      'Facilmente aborrecido(a) ou irritado(a)',
-      'Medo como se algo terrível fosse acontecer'
-    ],
-    compute: (v: number[]) => sum(v),
-    bands: [
-      { upTo: 4, color: '#10b981', label: 'Estável / Calmo' },
-      { upTo: 9, color: '#0d9488', label: 'Ansiedade Leve' },
-      { upTo: 14, color: '#f59e0b', label: 'Ansiedade Moderada' },
-      { upTo: 21, color: '#f43f5e', label: 'Ansiedade Severa' }
-    ]
-  },
-  CSI7: {
-    name: 'Sensibilidade Corporal Geral',
-    ref: 'Neblett R, et al. CSI short form. J Pain. 2026.',
-    max: 28,
-    cutoff: 20,
-    dec: 0,
-    scale: SC.csi04,
-    items: [
-      'Sinto dor em muitas partes do corpo',
-      'Tenho dores de cabeça frequentes',
-      'Meus sintomas físicos me angustiam muito',
-      'Sou sensível à luz intensa',
-      'Acordo cansado(a)',
-      'Sou sensível a odores fortes',
-      'Tenho dificuldade de concentração'
-    ],
-    compute: (v: number[]) => sum(v),
-    bands: [
-      { upTo: 20, color: '#10b981', label: 'Sensibilidade Normal' },
-      { upTo: 28, color: '#f43f5e', label: 'Sensibilidade Amplificada' }
-    ]
-  }
 };
 
 export const REFERENCES: [number, string, string, string, number, string][] = [

@@ -4,7 +4,7 @@
  */
 
 import { DailyLog, PatientData, ChronosData, Baseline, FlareAlert, Account } from './types';
-import { DX, QS, REFERENCES } from './data';
+import { DX, REFERENCES } from './data';
 
 export function uid(): string {
   try {
@@ -521,43 +521,6 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-import { Band } from './data';
-
-export function scoreQuestionnaire(type: string, answers: Record<number, number>): number {
-  const q = QS[type];
-  if (!q) return 0;
-  
-  const numericList: number[] = [];
-  q.items.forEach((it, idx) => {
-    const scaleIdx = answers[idx] ?? 0;
-    let val = scaleIdx;
-    
-    // Check if the overall questionnaire has custom values
-    if (q.vals && q.vals[scaleIdx] !== undefined) {
-      val = q.vals[scaleIdx];
-    }
-    
-    // Check if the item itself has specific custom values
-    if (typeof it !== 'string' && it.vals && it.vals[scaleIdx] !== undefined) {
-      val = it.vals[scaleIdx];
-    }
-    
-    numericList.push(val);
-  });
-  
-  const score = q.compute(numericList);
-  return parseFloat(score.toFixed(q.dec));
-}
-
-export function interpretBand(type: string, score: number): Band | null {
-  const q = QS[type];
-  if (!q || !q.bands) return null;
-  for (const b of q.bands) {
-    if (score <= b.upTo) return b;
-  }
-  return q.bands[q.bands.length - 1] || null;
-}
-
 export const UFS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
   'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
@@ -604,6 +567,7 @@ export function requestLink(data: ChronosData, patientId: string, doctorCode: st
 export function createAccount(
   data: ChronosData,
   params: {
+    id?: string;
     role: 'doctor' | 'patient';
     name: string;
     email: string;
@@ -615,7 +579,7 @@ export function createAccount(
     discountApplied?: boolean;
   }
 ): Account {
-  const newId = uid();
+  const newId = params.id || uid();
   const acc: Account = {
     id: newId,
     role: params.role,
@@ -623,7 +587,7 @@ export function createAccount(
     email: params.email,
     lgpd: { accepted: params.lgpd, at: new Date().toISOString() },
     subscription: {
-      plan: 'pro',
+      plan: 'basic',
       status: 'active',
       discountApplied: false
     }
@@ -639,8 +603,9 @@ export function createAccount(
       number: params.crm || '',
       uf: params.uf || '',
       name: params.name,
-      status: 'verified',
-      verified: true
+      status: 'pending',
+      verified: false,
+      submittedAt: new Date().toISOString()
     };
   } else {
     acc.gender = params.gender || null;
@@ -657,7 +622,6 @@ export function createAccount(
       gender: params.gender || null,
       hormoneRelevant: false,
       baseline: null,
-      periodicMetrics: [],
       flareAlerts: [],
       dailyLogs: []
     };
@@ -709,9 +673,6 @@ export function generateAITip(pd: PatientData): { title: string; text: string; c
   const avgPain = recent3.length ? recent3.reduce((acc, l) => acc + (l.pain ?? 0), 0) / recent3.length : 0;
   const avgFatigue = recent3.length ? recent3.reduce((acc, l) => acc + (l.fatigue ?? 0), 0) / recent3.length : 0;
   
-  // Find GAD7 score
-  const recentGads = (pd.periodicMetrics || []).filter(m => m.type === 'GAD7');
-  const latestGad = recentGads[recentGads.length - 1]?.score ?? 0;
   
   // 1. Water Intake focus
   const avgWater = recent3.length ? recent3.reduce((acc, l) => acc + (l.waterIntake ?? 0), 0) / recent3.length : 0;
@@ -727,7 +688,7 @@ export function generateAITip(pd: PatientData): { title: string; text: string; c
   // 2. High Screen Time / Mental Stress focus
   const avgScreenSocial = recent3.length ? recent3.reduce((acc, l) => acc + (l.screenTimeSocial ?? 0), 0) / recent3.length : 0;
   const avgScreenTotal = recent3.length ? recent3.reduce((acc, l) => acc + (l.screenTimeTotal ?? 0), 0) / recent3.length : 0;
-  if (avgScreenTotal > 5 || avgScreenSocial > 90 || latestGad > 9) {
+  if (avgScreenTotal > 5 || avgScreenSocial > 90) {
     return {
       title: "Programar um Descanso Mental",
       text: "Seu cérebro tem processado uma sobrecarga alta de estímulos digitais e estresse recentemente. Que tal programar um descanso mental intencional de 20 minutos agora? Desconecte as telas, deite-se confortavelmente, feche os olhos e respire lentamente. Isso sinaliza segurança para as vias neurais superativadas pela dor.",
@@ -788,16 +749,7 @@ export function validateClinicalData(customData?: ChronosData | PatientData): st
   const integrityAlerts: string[] = [];
 
   // 1. Static Configuration Checks
-  // (a) DX.q points to nonexistent QS key
-  Object.entries(DX).forEach(([key, config]) => {
-    if (config.q && !QS[config.q]) {
-      const msg = `[ValidationError] DX key "${key}" has questionnaire q="${config.q}" which does not exist in QS.`;
-      console.error(msg);
-      integrityAlerts.push(msg);
-    }
-  });
-
-  // (b) diagnoses keys used in the code must exist in DX
+  // (a) diagnoses keys used in the code must exist in DX
   const diagnosesUsedInCode = [
     'fibromialgia',
     'osteoartrite',
@@ -850,7 +802,6 @@ export function validateClinicalData(customData?: ChronosData | PatientData): st
       infectionSite: 'respiratorio' // triggers estrepto-psoríase alert
     })),
     baseline: null,
-    periodicMetrics: [],
     flareAlerts: [],
     hormoneRelevant: false
   };
@@ -904,97 +855,9 @@ export function validateClinicalData(customData?: ChronosData | PatientData): st
   }
 
   patientsToCheck.forEach(({ name, pd }) => {
-    const metrics = pd.periodicMetrics || [];
     const logs = pd.dailyLogs || [];
 
-    metrics.forEach((pm) => {
-      const qDate = pm.date;
-      const qType = pm.type;
-      const qScore = pm.score;
-
-      // Filter daily logs in the 3-day window [qDate - 2, qDate]
-      const qDateTime = new Date(qDate + 'T00:00:00').getTime();
-      const logsInWindow = logs.filter((l) => {
-        const lTime = new Date(l.date + 'T00:00:00').getTime();
-        const diffDays = (qDateTime - lTime) / (1000 * 60 * 60 * 24);
-        return diffDays >= 0 && diffDays <= 2;
-      });
-
-      if (logsInWindow.length === 0) return;
-
-      const validPains = logsInWindow.map(l => l.pain).filter(v => v != null && !isNaN(v)) as number[];
-      const validFatigues = logsInWindow.map(l => l.fatigue).filter(v => v != null && !isNaN(v)) as number[];
-      const validSleeps = logsInWindow.map(l => l.sleep).filter(v => v != null && !isNaN(v)) as number[];
-      const validMoods = logsInWindow.map(l => l.mood).filter(v => v != null && !isNaN(v)) as number[];
-
-      const avgPain = validPains.length ? validPains.reduce((a, b) => a + b, 0) / validPains.length : null;
-      const avgFatigue = validFatigues.length ? validFatigues.reduce((a, b) => a + b, 0) / validFatigues.length : null;
-      const avgSleep = validSleeps.length ? validSleeps.reduce((a, b) => a + b, 0) / validSleeps.length : null;
-      const avgMood = validMoods.length ? validMoods.reduce((a, b) => a + b, 0) / validMoods.length : null;
-
-      const band = interpretBand(qType, qScore);
-      const bandLabel = band ? band.label : '';
-
-      // (a) Pain Discrepancy Checks
-      const isPainQuestionnaire = ['fibromialgia', 'ar', 'espondiloartrite', 'sjogren', 'psoriasica', 'les', 'osteoartrite', 'miofascial'].includes(qType);
-      if (isPainQuestionnaire && avgPain !== null) {
-        const isSevereBand = ['Grave', 'Alta', 'Intensa', 'Ativa'].some(label => bandLabel.includes(label));
-        const isMildBand = ['Leve', 'Baixa', 'Remissão', 'Sob controle', 'Aceitável'].some(label => bandLabel.includes(label));
-
-        if (isSevereBand && avgPain <= 2.5) {
-          const alertMsg = `[Inconsistência de Dor] O questionário '${QS[qType]?.name || qType}' para ${name} em ${fmtDate(qDate, 's')} indica impacto grave/alto (${bandLabel}, score ${qScore}), mas os diários diários recentes registram dor média muito baixa (${avgPain.toFixed(1)}/10).`;
-          console.warn(alertMsg);
-          integrityAlerts.push(alertMsg);
-        } else if (isMildBand && avgPain >= 7.5) {
-          const alertMsg = `[Inconsistência de Dor] O questionário '${QS[qType]?.name || qType}' para ${name} em ${fmtDate(qDate, 's')} indica remissão ou impacto leve (${bandLabel}, score ${qScore}), mas os diários diários recentes registram dor média grave (${avgPain.toFixed(1)}/10).`;
-          console.warn(alertMsg);
-          integrityAlerts.push(alertMsg);
-        }
-      }
-
-      // (b) Fatigue Discrepancy Checks
-      const isFatigueQuestionnaire = ['fibromialgia', 'sjogren', 'psoriasica', 'les'].includes(qType);
-      if (isFatigueQuestionnaire && avgFatigue !== null) {
-        const isSevereBand = ['Grave', 'Alta', 'Alto'].some(label => bandLabel.includes(label));
-        const isMildBand = ['Leve', 'Baixa', 'Aceitável', 'Baixo'].some(label => bandLabel.includes(label));
-
-        if (isSevereBand && avgFatigue <= 2.5) {
-          const alertMsg = `[Inconsistência de Fadiga] O questionário '${QS[qType]?.name || qType}' para ${name} em ${fmtDate(qDate, 's')} indica fadiga grave/alta (${bandLabel}, score ${qScore}), mas os diários diários recentes registram fadiga média muito baixa (${avgFatigue.toFixed(1)}/10).`;
-          console.warn(alertMsg);
-          integrityAlerts.push(alertMsg);
-        } else if (isMildBand && avgFatigue >= 7.5) {
-          const alertMsg = `[Inconsistência de Fadiga] O questionário '${QS[qType]?.name || qType}' para ${name} em ${fmtDate(qDate, 's')} indica fadiga leve ou estável (${bandLabel}, score ${qScore}), mas os diários diários recentes registram fadiga média grave (${avgFatigue.toFixed(1)}/10).`;
-          console.warn(alertMsg);
-          integrityAlerts.push(alertMsg);
-        }
-      }
-
-      // (c) Sleep Discrepancy Checks
-      const isSleepQuestionnaire = ['fibromialgia', 'psoriasica', 'les'].includes(qType);
-      if (isSleepQuestionnaire && avgSleep !== null) {
-        const isSevereBand = ['Grave', 'Alta', 'Alto'].some(label => bandLabel.includes(label));
-        if (isSevereBand && avgSleep >= 8.0) {
-          const alertMsg = `[Inconsistência de Sono] O questionário '${QS[qType]?.name || qType}' para ${name} em ${fmtDate(qDate, 's')} indica sono gravemente prejudicado (${bandLabel}, score ${qScore}), mas os diários diários recentes registram qualidade de sono excelente (${avgSleep.toFixed(1)}/10).`;
-          console.warn(alertMsg);
-          integrityAlerts.push(alertMsg);
-        }
-      }
-
-      // (d) Anxiety/Depression Mood State Discrepancy Checks
-      if (avgMood !== null) {
-        if (qType === 'GAD7' && qScore >= 15 && avgMood >= 4.5) {
-          const alertMsg = `[Inconsistência Psicossocial] O questionário de Ansiedade (GAD-7) de ${name} em ${fmtDate(qDate, 's')} indica ansiedade severa (score ${qScore}), mas os registros diários concomitantes acusam humor excelente (${avgMood.toFixed(1)}/5).`;
-          console.warn(alertMsg);
-          integrityAlerts.push(alertMsg);
-        } else if (qType === 'PHQ9' && qScore >= 15 && avgMood >= 4.5) {
-          const alertMsg = `[Inconsistência Psicossocial] O questionário de Depressão (PHQ-9) de ${name} em ${fmtDate(qDate, 's')} indica sintomas depressivos graves (score ${qScore}), mas os registros diários concomitantes acusam humor excelente (${avgMood.toFixed(1)}/5).`;
-          console.warn(alertMsg);
-          integrityAlerts.push(alertMsg);
-        }
-      }
-    });
-
-    // (e) Inflammatory Arthritis Stiffness vs Pain Check
+    // (a) Inflammatory Arthritis Stiffness vs Pain Check
     const hasInflammatory = pd.diagnoses?.ar || pd.diagnoses?.espondiloartrite || pd.diagnoses?.psoriasica;
     if (hasInflammatory) {
       logs.forEach((l) => {

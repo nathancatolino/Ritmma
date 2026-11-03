@@ -16,6 +16,7 @@ export interface Subscription {
 }
 
 export interface CrmInfo {
+  council?: string;
   number: string;
   uf: string;
   name: string;
@@ -140,7 +141,10 @@ export interface ClinicalPhotoRecord {
   time: string; // HH:mm
   bodyRegion: string; // e.g. 'Joelho Direito', 'Articulação MCF', 'Erupção Malar'
   title: string; // e.g. 'Edema articular matinal', 'Lesão cutânea eritematosa'
-  thumbnailDataUrl: string; // client-side compressed thumbnail (< 35KB)
+  driveFileId?: string;
+  driveUrl?: string;
+  sharedWithDoctor?: boolean;
+  thumbnailDataUrl?: string; // legacy local records only; new photos are stored in the patient's Drive
   consentConfirmed: boolean;
   notes?: string;
 }
@@ -277,13 +281,6 @@ export interface FoodMeal {
   suspectedTriggers?: string[]; // e.g. ['gluten', 'lactose', 'sugar', 'nightshades', 'artificial_sweeteners', 'red_meat', 'processed_food']
 }
 
-export interface PeriodicMetric {
-  type: string;
-  date: string;
-  score: number;
-  maxScore: number;
-  prev: number | null;
-}
 
 export interface FlareAlert {
   date: string;
@@ -328,7 +325,6 @@ export interface PatientData {
   gender: string | null;
   hormoneRelevant: boolean;
   baseline: Baseline | null;
-  periodicMetrics: PeriodicMetric[];
   flareAlerts: FlareAlert[];
   dailyLogs: DailyLog[];
   weight?: number; // em kg, para cálculo hídrico
@@ -342,9 +338,6 @@ export interface PatientData {
   painBaseline?: number; // dor crônica basal referida (1 a 10)
   sleepBaselineHours?: number; // média habitual de horas de sono
   fatigueBaseline?: number; // nível basal de fadiga recorrente (1 a 10)
-  customSilhouetteSvg?: string; // Código SVG gerado pelo Gemini
-  customSilhouetteBiotype?: string; // Biótipo selecionado para silhueta
-  customSilhouetteStyle?: string; // Estilo estético da silhueta
   // Menstrual Cycle Configuration & Prediction
   menstrualCycleType?: 'regular' | 'irregular' | 'amenorrhea' | 'menopause' | 'continuous_hormone';
   cycleLengthDays?: number; // e.g. 28 days

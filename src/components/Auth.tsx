@@ -4,12 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { Account, ChronosData } from '../types';
-import { findByEmail, createAccount } from '../utils';
-import { User, Sparkles } from 'lucide-react';
+import { ChronosData } from '../types';
+import { createAccount } from '../utils';
+import { User } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { RitmaLogo } from './RitmaLogo';
-import { signInWithGoogle } from '../firebase';
+import { fetchAccountFromCloud, fetchPatientDataFromCloud, logOutFromFirebase, signInWithGoogle } from '../firebase';
 
 interface AuthProps {
   data: ChronosData;
@@ -17,108 +17,117 @@ interface AuthProps {
   prefillDocCode?: string | null;
 }
 
-export const Auth: React.FC<AuthProps> = ({ data, onUpdateData }) => {
-  const [mode, setMode] = useState<'signup' | 'login' | 'plans'>('signup');
+export const Auth: React.FC<AuthProps> = ({ onUpdateData }) => {
+  const [mode, setMode] = useState<'signup' | 'login'>('signup');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [doctorSpecialty, setDoctorSpecialty] = useState('');
+  const [doctorCouncil, setDoctorCouncil] = useState('CRM');
+  const [doctorNumber, setDoctorNumber] = useState('');
+  const [doctorUf, setDoctorUf] = useState('');
   const [lgpdAccepted, setLgpdAccepted] = useState(false);
-  const [pendingAccount, setPendingPatient] = useState<Account | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-
-  const handleSignup = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim().toLowerCase();
-
-    if (!trimmedName) {
-      setErrorMsg('Informe seu nome completo para criar seu diário.');
-      return;
-    }
-    if (!lgpdAccepted) {
-      setErrorMsg('É obrigatório aceitar o termo de tratamento de dados de saúde (LGPD).');
-      return;
-    }
-
-    if (trimmedEmail && findByEmail(data, trimmedEmail)) {
-      setErrorMsg('Já existe um perfil cadastrado com este e-mail.');
-      return;
-    }
-
-    onUpdateData((prev) => {
-      const pat = createAccount(prev, {
-        role: 'patient',
-        name: trimmedName,
-        email: trimmedEmail,
-        lgpd: true,
-        discountApplied: false
-      });
-
-      prev.session.currentUserId = pat.id;
-    });
-  };
-
-  const handlePlanSelect = () => {
-    if (pendingAccount) {
-      onUpdateData((prev) => {
-        const acc = prev.accounts.find((a) => a.id === pendingAccount.id);
-        if (acc) {
-          acc.subscription.plan = 'pro';
-          acc.subscription.status = 'active';
-        }
-        prev.session.currentUserId = pendingAccount.id;
-      });
-    }
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-
-    const acc = findByEmail(data, email.trim().toLowerCase());
-    if (!acc) {
-      setErrorMsg('Nenhuma conta encontrada com este e-mail.');
-      return;
-    }
-    onUpdateData((prev) => {
-      prev.session.currentUserId = acc.id;
-    });
-  };
-
-  const handleQuickLogin = (id: string) => {
-    const acc = data.accounts.find((a) => a.id === id);
-    if (acc) {
-      onUpdateData((prev) => {
-        prev.session.currentUserId = acc.id;
-      });
-    }
-  };
 
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
     try {
       const user = await signInWithGoogle();
       if (!user) return;
+      if (!user.email || !user.emailVerified) {
+        setErrorMsg('Use uma conta Google com endereço de e-mail verificado.');
+        return;
+      }
       const userEmail = (user.email || '').toLowerCase();
       const userName = user.displayName || user.email?.split('@')[0] || 'Paciente';
+      const remoteAccount = await fetchAccountFromCloud(user.uid);
+      const remotePatientData = userType === 'patient'
+        ? await fetchPatientDataFromCloud(user.uid)
+        : null;
 
+      if (userType === 'doctor' && remoteAccount?.role === 'doctor' && (remoteAccount.crm?.status !== 'verified' || !remoteAccount.crm?.verified)) {
+        setErrorMsg(remoteAccount.crm?.status === 'failed'
+          ? `Cadastro recusado. Motivo: ${remoteAccount.crm.rejectionReason || 'consulte o suporte.'}`
+          : 'Seu cadastro profissional está em análise. Você poderá entrar após a aprovação.');
+        return;
+      }
+      if (userType === 'doctor' && !remoteAccount) {
+        if (mode !== 'signup') {
+          setErrorMsg('Não encontramos um cadastro profissional para esta conta Google. Se é seu primeiro acesso, solicite o cadastro.');
+          return;
+        }
+        if (!name.trim() || !doctorSpecialty.trim() || !doctorNumber.trim() || !doctorUf.trim() || !lgpdAccepted) {
+          setErrorMsg('Preencha seus dados profissionais e aceite o tratamento dos dados para enviar o cadastro.');
+          return;
+        }
+        onUpdateData((prev) => {
+          if (prev.accounts.some((account) => account.id === user.uid)) return;
+          createAccount(prev, {
+            role: 'doctor', id: user.uid, name: name.trim(), email: userEmail,
+            specialty: doctorSpecialty.trim(), crm: doctorNumber.trim(), uf: doctorUf.trim().toUpperCase(), lgpd: lgpdAccepted
+          });
+          const submitted = prev.accounts.find((account) => account.id === user.uid);
+          if (submitted?.crm) submitted.crm.council = doctorCouncil;
+        });
+        setErrorMsg('Solicitação enviada. Seu perfil ficará pendente até a conferência do conselho profissional.');
+        return;
+      }
+      if (remoteAccount && remoteAccount.role !== userType) {
+        setErrorMsg('Esta conta Google está cadastrada com outro tipo de perfil.');
+        return;
+      }
+      if (!remoteAccount && userType === 'patient' && mode !== 'signup') {
+        setErrorMsg('Nenhuma conta foi encontrada. Se este for seu primeiro acesso, selecione “Cadastre-se grátis”.');
+        return;
+      }
+      if (!remoteAccount && userType === 'patient' && (!lgpdAccepted || !name.trim())) {
+        setErrorMsg('Informe seu nome e aceite o tratamento de dados antes de criar a conta.');
+        return;
+      }
       onUpdateData((prev) => {
-        let acc = prev.accounts.find((a) => a.email.toLowerCase() === userEmail);
+        const existing = remoteAccount || prev.accounts.find((a) => a.id === user.uid) || prev.accounts.find((a) =>
+          a.email.toLowerCase() === userEmail && a.role === userType && /^[0-9a-f-]{36}$/i.test(a.id)
+        );
+        let acc = existing;
+        if (acc && acc.id !== user.uid) {
+          const oldId = acc.id;
+          acc.id = user.uid;
+          if (prev.patientData[oldId]) {
+            prev.patientData[user.uid] = remotePatientData || prev.patientData[oldId];
+            delete prev.patientData[oldId];
+          }
+          prev.links.forEach((link) => {
+            if (link.patientId === oldId) link.patientId = user.uid;
+            if (link.doctorId === oldId) link.doctorId = user.uid;
+          });
+          prev.notifications.forEach((notification) => {
+            if (notification.fromUserId === oldId) notification.fromUserId = user.uid;
+            if (notification.toUserId === oldId) notification.toUserId = user.uid;
+          });
+        }
         if (!acc) {
           acc = createAccount(prev, {
-            role: 'patient',
-            name: userName,
+            role: userType,
+            id: user.uid,
+            name: name.trim() || userName,
             email: userEmail,
-            lgpd: true,
+            lgpd: lgpdAccepted,
             discountApplied: false
           });
+        }
+        if (remoteAccount) {
+          const localIndex = prev.accounts.findIndex((item) => item.id === user.uid);
+          if (localIndex >= 0) prev.accounts[localIndex] = remoteAccount;
+          else prev.accounts.push(remoteAccount);
+          acc = remoteAccount;
+        }
+        if (remotePatientData) prev.patientData[user.uid] = remotePatientData;
+        if (userType === 'patient' && !prev.patientData[user.uid]) {
+          prev.patientData[user.uid] = { diagnoses: {}, gender: null, hormoneRelevant: false, baseline: null, flareAlerts: [], dailyLogs: [] };
         }
         prev.session.currentUserId = acc.id;
       });
     } catch (err: any) {
       if (err?.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg('Não foi possível autenticar com o Google. Você pode se cadastrar ou entrar abaixo com e-mail.');
+        setErrorMsg('Não foi possível autenticar com o Google. Tente novamente.');
       }
     }
   };
@@ -184,132 +193,52 @@ export const Auth: React.FC<AuthProps> = ({ data, onUpdateData }) => {
             </div>
           )}
 
-          {userType === 'patient' && (
-            <>
-              {/* Google Sign In option */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                className="w-full py-2.5 px-4 mb-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-3 cursor-pointer"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span className="text-xs">Continuar com o Google</span>
-              </button>
-
-              <div className="relative flex py-2 items-center mb-4">
-                <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
-                <span className="flex-shrink mx-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">ou com e-mail</span>
-                <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
-              </div>
-            </>
+          {userType === 'patient' && mode === 'signup' && (
+            <div className="space-y-4 mb-4">
+              <h3 className="font-poppins font-bold text-md text-slate-800 dark:text-slate-200">Criar seu Diário Clínico</h3>
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Nome completo</span>
+                <input id="auth-name" className="form-input" autoComplete="name" placeholder="Ex.: Maria Silva" value={name} onChange={(e) => setName(e.target.value)} />
+              </label>
+              <label htmlFor="auth-lgpd" className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl cursor-pointer">
+                <input id="auth-lgpd" type="checkbox" checked={lgpdAccepted} onChange={(e) => setLgpdAccepted(e.target.checked)} className="mt-1 accent-teal-500 h-4 w-4" />
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">Concordo com o tratamento dos meus dados de saúde para o acompanhamento no RITMA. Posso revogar este consentimento nas configurações.</span>
+              </label>
+            </div>
           )}
 
-          {mode === 'signup' && userType === 'patient' && (
-            <form onSubmit={handleSignup} className="space-y-4">
-              <h3 className="font-poppins font-bold text-md text-slate-800 dark:text-slate-200">
-                Criar seu Diário Clínico
-              </h3>
-
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label htmlFor="auth-name" className="text-xs font-semibold text-slate-500 dark:text-slate-400 cursor-pointer">Nome completo</label>
-                  <input
-                    id="auth-name"
-                    className="form-input"
-                    placeholder="Ex: Maria Silva"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="auth-email" className="text-xs font-semibold text-slate-500 dark:text-slate-400 cursor-pointer">E-mail pessoal</label>
-                  <input
-                    id="auth-email"
-                    type="email"
-                    className="form-input"
-                    placeholder="Ex: maria@provedor.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-
-                {/* LGPD Check */}
-                <label htmlFor="auth-lgpd" className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl cursor-pointer select-none">
-                  <input
-                    id="auth-lgpd"
-                    type="checkbox"
-                    checked={lgpdAccepted}
-                    onChange={(e) => setLgpdAccepted(e.target.checked)}
-                    className="mt-1 accent-teal-500 h-4 w-4 border-slate-300 rounded focus:ring-teal-500"
-                  />
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
-                    Concordo com o tratamento estrito de meus dados de saúde e registros pessoais para acompanhamento e suporte de decisões clínicas (LGPD).
-                  </span>
-                </label>
+          {userType === 'doctor' && mode === 'signup' && (
+            <div className="space-y-3 mb-4">
+              <h3 className="font-poppins font-bold text-md text-slate-800 dark:text-slate-200">Solicitar cadastro profissional</h3>
+              <label className="block space-y-1"><span className="text-xs font-semibold text-slate-500">Nome completo</span><input className="form-input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></label>
+              <label className="block space-y-1"><span className="text-xs font-semibold text-slate-500">Profissão / especialidade</span><input className="form-input" value={doctorSpecialty} onChange={(e) => setDoctorSpecialty(e.target.value)} placeholder="Ex.: Medicina — Reumatologia" /></label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1"><span className="text-xs font-semibold text-slate-500">Conselho</span><select className="form-input" value={doctorCouncil} onChange={(e) => setDoctorCouncil(e.target.value)}>{['CRM','CREFITO','CRP','CREF','CRN','COREN','CRF','CRESS','CRFa','Outro'].map((item) => <option key={item}>{item}</option>)}</select></label>
+                <label className="block space-y-1"><span className="text-xs font-semibold text-slate-500">UF</span><input className="form-input" maxLength={2} autoComplete="address-level1" value={doctorUf} onChange={(e) => setDoctorUf(e.target.value.toUpperCase())} placeholder="SP" /></label>
               </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-teal-500 via-blue-600 to-indigo-600 hover:opacity-95 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
-              >
-                Cadastrar e Iniciar Diário
-              </button>
-            </form>
+              <label className="block space-y-1"><span className="text-xs font-semibold text-slate-500">Número de registro</span><input className="form-input" value={doctorNumber} onChange={(e) => setDoctorNumber(e.target.value)} /></label>
+              <label htmlFor="auth-lgpd" className="flex items-start gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl cursor-pointer">
+                <input id="auth-lgpd" type="checkbox" checked={lgpdAccepted} onChange={(e) => setLgpdAccepted(e.target.checked)} className="mt-1 accent-teal-500 h-4 w-4" />
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">Autorizo o tratamento dos dados deste cadastro para conferência do registro profissional.</span>
+              </label>
+            </div>
           )}
 
-          {mode === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <h3 className="font-poppins font-bold text-md text-slate-800 dark:text-slate-200">
-                {userType === 'doctor' ? 'Acesso ao Painel Clínico' : 'Fazer Login'}
-              </h3>
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="w-full py-2.5 px-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-3 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
+          >
+            <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+            </svg>
+            <span className="text-xs">{userType === 'doctor' ? 'Entrar com Google profissional' : 'Continuar com o Google'}</span>
+          </button>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center mt-3">A conta Google protege seu acesso e sincroniza seus dados entre dispositivos.</p>
 
-              <div className="space-y-1">
-                <label htmlFor="login-email" className="text-xs font-semibold text-slate-500 dark:text-slate-400 cursor-pointer">
-                  {userType === 'doctor' ? 'E-mail profissional cadastrado' : 'E-mail cadastrado'}
-                </label>
-                <input
-                  id="login-email"
-                  type="email"
-                  className="form-input"
-                  placeholder={userType === 'doctor' ? 'Ex: dr.silva@reuma.com' : 'Ex: ana@pain.com'}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className={`w-full py-2.5 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer ${
-                  userType === 'doctor'
-                    ? 'bg-blue-600 hover:bg-blue-700'
-                    : 'bg-gradient-to-r from-teal-500 via-blue-600 to-indigo-600 hover:opacity-95'
-                }`}
-              >
-                {userType === 'doctor' ? 'Entrar no Consultório Digital' : 'Acessar Meu Painel'}
-              </button>
-            </form>
-          )}
         </div>
 
         {/* Footer toggles for Patient */}
@@ -329,7 +258,7 @@ export const Auth: React.FC<AuthProps> = ({ data, onUpdateData }) => {
                 </button>
               </span>
             ) : (
-              mode !== 'plans' && (
+              (
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   Já tem um registro?{' '}
                   <button
@@ -347,30 +276,12 @@ export const Auth: React.FC<AuthProps> = ({ data, onUpdateData }) => {
           </div>
         )}
 
-        {/* Quick profiles section */}
-        <div className="mt-8 border-t border-slate-100 dark:border-slate-800/80 pt-6 text-center select-none">
-          <h4 className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold mb-3">
-            {userType === 'patient' ? 'Perfis de Pacientes Salvos:' : 'Equipe Clínica Cadastrada:'}
-          </h4>
-          <div className="flex flex-wrap justify-center gap-2">
-            {data.accounts
-              .filter((acc) => acc.role === userType)
-              .map((acc) => (
-                <button
-                  key={acc.id}
-                  onClick={() => handleQuickLogin(acc.id)}
-                  className={`text-[11px] font-semibold bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border text-slate-700 dark:text-slate-300 py-1.5 px-3 rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
-                    userType === 'doctor'
-                      ? 'border-blue-200 dark:border-blue-900/60 hover:border-blue-500'
-                      : 'border-teal-200 dark:border-teal-900/60 hover:border-teal-500'
-                  }`}
-                >
-                  <span>{userType === 'doctor' ? '🩺' : '👤'}</span>
-                  <span>{acc.name}</span>
-                </button>
-              ))}
-          </div>
-        </div>
+        {userType === 'doctor' && <div className="text-center mt-6 text-xs text-slate-500">
+          {mode === 'login' ? 'Primeiro acesso profissional? ' : 'Já tem cadastro aprovado? '}
+          <button type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setErrorMsg(''); }} className="text-blue-700 dark:text-blue-300 font-bold hover:underline">{mode === 'login' ? 'Solicitar cadastro' : 'Entrar'}</button>
+        </div>}
+        {userType === 'doctor' && <div className="mt-3 text-center"><button type="button" onClick={() => void logOutFromFirebase()} className="text-xs font-semibold text-slate-500 underline">Sair da conta Google</button></div>}
+
       </div>
     </div>
   );

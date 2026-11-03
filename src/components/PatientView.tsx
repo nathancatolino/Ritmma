@@ -4,11 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Account, ChronosData, DailyLog, PeriodicMetric, MedicationConfig, ScheduledEventConfig } from '../types';
+import { Account, ChronosData, DailyLog, MedicationConfig, ScheduledEventConfig } from '../types';
 import {
   DX,
-  REFERENCES,
-  QS
+  REFERENCES
 } from '../data';
 import {
   todayISO,
@@ -50,10 +49,8 @@ import {
 } from 'recharts';
 import { PatientDiary } from './PatientDiary';
 import { MedicationEditor } from './MedicationEditor';
-import { PatientMetrics } from './PatientMetrics';
 import { MentalHealthSupport } from './MentalHealthSupport';
 import { Achievements } from './Achievements';
-import { GeminiAnalyses } from './GeminiAnalyses';
 import { ThemeToggle } from './ThemeToggle';
 import { RitmaLogo } from './RitmaLogo';
 import { FilterLogs } from './FilterLogs';
@@ -138,7 +135,7 @@ interface PatientViewProps {
   onManualCloudSync?: () => Promise<boolean>;
 }
 
-type TabType = 'home' | 'diary' | 'medications' | 'bodymap' | 'fooddiary' | 'metrics' | 'charts' | 'alert' | 'mood' | 'doctor' | 'notif' | 'report' | 'settings' | 'devices' | 'hydration' | 'achievements' | 'geminianalysis' | 'news' | 'episodes' | 'photos' | 'science';
+type TabType = 'home' | 'diary' | 'medications' | 'bodymap' | 'fooddiary' | 'charts' | 'alert' | 'mood' | 'doctor' | 'notif' | 'report' | 'settings' | 'devices' | 'hydration' | 'achievements' | 'news' | 'episodes' | 'photos' | 'science';
 
 let audioCtx: AudioContext | null = null;
 const playAlarmSound = () => {
@@ -697,21 +694,6 @@ export const PatientView: React.FC<PatientViewProps> = ({
     setActiveTab('home');
   };
 
-  // SAVE CLINICAL METRIC HANDLER
-  const handleSaveMetric = (newMetric: PeriodicMetric) => {
-    notifySaving('Salvando avaliação clínica...', 'Gravando parâmetros...');
-    onUpdateData((prev) => {
-      const patientId = prev.session.currentUserId!;
-      const profile = prev.patientData[patientId];
-      if (profile) {
-        profile.periodicMetrics.push(newMetric);
-      }
-    });
-    setTimeout(() => {
-      notifySaved('✓ Avaliação clínica salva com sucesso!', `Escore de ${newMetric.type} registrado.`);
-    }, 300);
-  };
-
   // UPDATE PATIENT PROFILE (WEIGHT, MEDICATIONS, SCHEDULED EVENTS)
   const handleUpdatePatientProfile = (
     weight: number,
@@ -992,7 +974,6 @@ export const PatientView: React.FC<PatientViewProps> = ({
         gender: null,
         hormoneRelevant: false,
         baseline: null,
-        periodicMetrics: [],
         flareAlerts: [],
         dailyLogs: []
       };
@@ -1281,7 +1262,7 @@ export const PatientView: React.FC<PatientViewProps> = ({
             <ThemeToggle />
             <Tooltip
               title="Notificações e lembretes"
-              content="Veja avisos de medicação, lembretes de questionários periódicos e comunicados do seu médico."
+              content="Veja avisos de medicação e comunicados do seu médico."
               position="bottom"
             >
               <button
@@ -2494,9 +2475,6 @@ export const PatientView: React.FC<PatientViewProps> = ({
             </div>
           )}
 
-          {activeTab === 'metrics' && (
-            <PatientMetrics patientData={pd} onSaveMetric={handleSaveMetric} />
-          )}
 
           {activeTab === 'charts' && (
             <div className="space-y-6">
@@ -3039,13 +3017,6 @@ export const PatientView: React.FC<PatientViewProps> = ({
             />
           )}
 
-          {activeTab === 'geminianalysis' && (
-            <GeminiAnalyses
-              patientData={pd}
-              logs={logs}
-            />
-          )}
-
           {activeTab === 'alert' && (
             <div className="space-y-6">
               <div>
@@ -3177,12 +3148,6 @@ export const PatientView: React.FC<PatientViewProps> = ({
               {/* Specialist Referral Alerts Section */}
               {(() => {
                 const diagnoses = pd.diagnoses || {};
-                const lastPHQ9 = (pd.metrics || []).filter((m) => m.type === 'PHQ9').sort((a, b) => b.date.localeCompare(a.date))[0];
-                const lastGAD7 = (pd.metrics || []).filter((m) => m.type === 'GAD7').sort((a, b) => b.date.localeCompare(a.date))[0];
-                const lastCSI7 = (pd.metrics || []).filter((m) => m.type === 'CSI7').sort((a, b) => b.date.localeCompare(a.date))[0];
-
-                const scorePHQ9 = lastPHQ9?.score ?? 0;
-                const scoreGAD7 = lastGAD7?.score ?? 0;
 
                 const allPossibleSpecs: any[] = [];
 
@@ -3274,21 +3239,11 @@ export const PatientView: React.FC<PatientViewProps> = ({
                 allPossibleSpecs.push({
                   role: 'Psicólogo(a) Clínico (TCC)',
                   isPsych: true,
-                  urgency: (scorePHQ9 > 4 || scoreGAD7 > 4) ? 'Altamente Recomendado' : 'Recomendado',
+                  urgency: 'Recomendado',
                   color: 'text-blue-800 bg-blue-50/70 border-blue-200 dark:bg-blue-950/25 dark:text-blue-300 dark:border-blue-900/40',
                   desc: 'Oferece suporte terapêutico cognitivo-comportamental especializado para dores de longa duração. Ensina técnicas práticas para gerenciar o estresse, lidar com preocupações e acalmar o sistema nervoso.'
                 });
 
-                // 9. Psiquiatra de Apoio
-                if (scorePHQ9 >= 10 || scoreGAD7 >= 10) {
-                  allPossibleSpecs.push({
-                    role: 'Psiquiatra de Apoio',
-                    isPsychiatrist: true,
-                    urgency: 'Sugerido',
-                    color: 'text-pink-800 bg-pink-50/70 border-pink-200 dark:bg-pink-950/25 dark:text-pink-300 dark:border-pink-900/40',
-                    desc: 'Oferece avaliação médica se as oscilações de humor ou ansiedade estiverem muito acentuadas. Auxilia com medicações seguras que têm dupla ação: ajudam a equilibrar o sono e acalmam os caminhos da dor física.'
-                  });
-                }
 
                 // Prioritization: we select exactly 1 to 2 preferential specialties
                 const preferentials: any[] = [];
@@ -3310,11 +3265,6 @@ export const PatientView: React.FC<PatientViewProps> = ({
                   preferentials.push({ ...neuroSpec, urgency: 'Preferencial Principal' });
                 }
 
-                // 3rd Priority: Psicólogo if high stress/mood score
-                const psychSpec = allPossibleSpecs.find(s => s.isPsych);
-                if (psychSpec && (scorePHQ9 >= 10 || scoreGAD7 >= 10) && preferentials.length < 2) {
-                  preferentials.push({ ...psychSpec, urgency: 'Preferencial Principal' });
-                }
 
                 // Fallbacks to fill up to 1-2 preferentials
                 allPossibleSpecs.forEach(spec => {
@@ -3403,15 +3353,13 @@ export const PatientView: React.FC<PatientViewProps> = ({
                   <Brain className="w-5 h-5 text-teal-500" /> Saúde Mental & Estratégias de Autorregulação
                 </h2>
                 <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">
-                  Gerencie seu estresse, aprenda técnicas cognitivas (TCC), realize sessões de respiração coerente e preencha questionários de avaliação clínica.
+                  Gerencie seu estresse, explore estratégias cognitivas e pratique exercícios de respiração.
                 </p>
               </div>
 
               <MentalHealthSupport
-                patientData={pd}
                 logs={logs}
                 onSaveLog={handleSaveLog}
-                onSaveMetric={handleSaveMetric}
               />
             </div>
           )}
@@ -4553,38 +4501,8 @@ export const PatientView: React.FC<PatientViewProps> = ({
                   </div>
                 )}
 
-                {/* Periodic Metrics history list */}
-                {pd?.periodicMetrics.length > 0 && (
-                  <div className="border-t border-slate-50 dark:border-slate-800 pt-4 space-y-2">
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase block tracking-wider">
-                      Histórico Recente de Métricas Científicas
-                    </span>
-                    <div className="divide-y divide-slate-100 dark:divide-slate-850">
-                      {pd.periodicMetrics
-                        .slice(-6)
-                        .reverse()
-                        .map((m, idx) => (
-                          <div key={idx} className="flex justify-between py-2 text-sm">
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                              {m.type === 'PHQ9'
-                                ? 'PHQ-9: Depressão'
-                                : m.type === 'GAD7'
-                                ? 'GAD-7: Ansiedade'
-                                : m.type === 'CSI7'
-                                ? 'CSI-7: Sensibilização Central'
-                                : `${DX[m.type]?.icon || '🩺'} ${QS[m.type]?.name.split(':')[0]}`}
-                            </span>
-                            <span className="font-semibold text-slate-600 dark:text-slate-400">
-                              {m.score}/{m.maxScore} (em {fmtDate(m.date, 's')})
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-4 text-xs text-slate-500 dark:text-slate-400 font-medium leading-normal">
-                  Ficha gerada de forma automática pelo aplicativo RITMA. Os dados fornecidos pelo paciente foram coletados de forma direta por Diários de Sintomas em tempo real e escalas clínicas cientificamente validadas.
+                  Ficha gerada de forma automática pelo aplicativo RITMA. Os dados são baseados nos registros do diário de sintomas.
                 </div>
               </div>
             </div>

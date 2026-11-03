@@ -319,7 +319,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
                     <option value="other">Outro / Não aplicável</option>
                   </select>
                   <p className="text-xs text-slate-500 dark:text-slate-400 leading-normal">
-                    💡 <em>Por que pedimos isso?</em> Algumas referências hormonais e questionários clínicos utilizam essa informação para calibrar valores de referência.
+                    💡 <em>Por que pedimos isso?</em> Essa informação ajuda a contextualizar seus registros de saúde.
                   </p>
                 </div>
               </div>
@@ -476,7 +476,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
                   <span>Quais condições de saúde você deseja monitorar?</span>
                 </h3>
                 <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
-                  O RITMA adapta automaticamente as escalas clínicas validadas (FIQr, RAPID3, HIT-6, WOMAC) e o mapa anatômico de dor de acordo com o que você selecionar.
+                  O RITMA organiza o diário e os recursos de acompanhamento de acordo com as condições selecionadas.
                 </p>
               </div>
 

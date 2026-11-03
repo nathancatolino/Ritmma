@@ -15,22 +15,62 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     function isAuthorizedDoctorForPatient(patientId) {
       let linkPath = /databases/$(database)/documents/links/$(patientId + "_" + request.auth.uid);
-      return isSignedIn() && exists(linkPath) && get(linkPath).data.status == 'authorized';
+      return isSignedIn() && exists(linkPath) &&
+        get(linkPath).data.patientId == patientId &&
+        get(linkPath).data.doctorId == request.auth.uid &&
+        get(linkPath).data.status == 'authorized';
+    }
+
+    function isLinkParticipantAccount(userId) {
+      let patientToDoctor = /databases/$(database)/documents/links/$(request.auth.uid + "_" + userId);
+      let doctorToPatient = /databases/$(database)/documents/links/$(userId + "_" + request.auth.uid);
+      return isSignedIn() && (
+        (exists(patientToDoctor) && get(patientToDoctor).data.status in ['pending', 'authorized']) ||
+        (exists(doctorToPatient) && get(doctorToPatient).data.status in ['pending', 'authorized'])
+      );
     }
 
     // Accounts collection (least privilege: direct get only, no bulk enumeration)
     match /accounts/{userId} {
-      allow get: if isValidId(userId) && isSignedIn();
-      allow list: if false;
-      allow create: if isValidId(userId) && isOwner(userId);
-      allow update: if isValidId(userId) && isOwner(userId);
+      allow get: if isValidId(userId) && (isAdmin() || isOwner(userId) || isLinkParticipantAccount(userId));
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isOwner(userId) &&
+        request.resource.data.id == userId &&
+        (request.resource.data.role == 'patient' ||
+          (request.resource.data.role == 'doctor' &&
+            request.resource.data.crm.status == 'pending' &&
+            request.resource.data.crm.verified == false));
+      allow update: if isValidId(userId) && ((isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['crm']) &&
+        request.resource.data.crm.status in ['verified', 'failed'] &&
+        request.resource.data.crm.verified == (request.resource.data.crm.status == 'verified')) ||
+        (isOwner(userId) &&
+        request.resource.data.id == userId &&
+        request.resource.data.role == resource.data.role &&
+        (((!('crm' in resource.data)) && (!('crm' in request.resource.data))) ||
+          (('crm' in resource.data) && ('crm' in request.resource.data) &&
+            request.resource.data.crm == resource.data.crm)));
       allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    match /professionalReviews/{reviewId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() &&
+        request.resource.data.reviewerUid == request.auth.uid &&
+        request.resource.data.professionalId is string &&
+        request.resource.data.decision in ['verified', 'failed'] &&
+        request.resource.data.keys().hasOnly(['professionalId', 'professionalEmail', 'decision', 'reason', 'reviewerUid', 'createdAt']);
+      allow update, delete: if false;
     }
 
     // PatientData collection (requires effective authorization, pending links denied)
@@ -43,8 +83,10 @@ service cloud.firestore {
         resource.data.patientId == request.auth.uid || 
         isAuthorizedDoctorForPatient(resource.data.patientId)
       );
-      allow create: if isValidId(patientId) && isOwner(patientId);
-      allow update: if isValidId(patientId) && isOwner(patientId);
+      allow create: if isValidId(patientId) && isOwner(patientId) &&
+        request.resource.data.patientId == patientId;
+      allow update: if isValidId(patientId) && isOwner(patientId) &&
+        request.resource.data.patientId == patientId;
       allow delete: if isValidId(patientId) && isOwner(patientId);
     }
 
@@ -58,18 +100,26 @@ service cloud.firestore {
         resource.data.patientId == request.auth.uid || 
         resource.data.doctorId == request.auth.uid
       );
-      allow create: if isValidId(linkId) && isSignedIn() && (
-        request.resource.data.patientId == request.auth.uid || 
-        request.resource.data.doctorId == request.auth.uid
-      ) && request.resource.data.status in ['pending', 'authorized'];
+      allow create: if isValidId(linkId) && isSignedIn() &&
+        linkId == request.resource.data.patientId + "_" + request.resource.data.doctorId &&
+        exists(/databases/$(database)/documents/accounts/$(request.resource.data.patientId)) &&
+        exists(/databases/$(database)/documents/accounts/$(request.resource.data.doctorId)) &&
+        get(/databases/$(database)/documents/accounts/$(request.resource.data.patientId)).data.role == 'patient' &&
+        get(/databases/$(database)/documents/accounts/$(request.resource.data.doctorId)).data.role == 'doctor' &&
+        get(/databases/$(database)/documents/accounts/$(request.resource.data.doctorId)).data.crm.verified == true &&
+        request.resource.data.status == 'pending' &&
+        ((request.resource.data.patientId == request.auth.uid &&
+            request.resource.data.initiatedBy == 'patient') ||
+          (request.resource.data.doctorId == request.auth.uid &&
+            request.resource.data.initiatedBy == 'doctor'));
       allow update: if isValidId(linkId) && isSignedIn() && (
-        // Must be participant
-        (resource.data.patientId == request.auth.uid || resource.data.doctorId == request.auth.uid) &&
-        // Participants are immutable
+        (resource.data.patientId == request.auth.uid ||
+          (resource.data.doctorId == request.auth.uid && resource.data.initiatedBy == 'patient')) &&
         request.resource.data.patientId == resource.data.patientId &&
         request.resource.data.doctorId == resource.data.doctorId &&
-        // Only patient can authorize a pending request (doctor cannot self-authorize)
-        (request.resource.data.status != 'authorized' || request.auth.uid == resource.data.patientId)
+        request.resource.data.initiatedBy == resource.data.initiatedBy &&
+        resource.data.status == 'pending' && request.resource.data.status == 'authorized' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
       );
       allow delete: if isValidId(linkId) && isSignedIn() && (
         resource.data.patientId == request.auth.uid || 
@@ -87,13 +137,15 @@ service cloud.firestore {
         resource.data.toUserId == request.auth.uid || 
         resource.data.fromUserId == request.auth.uid
       );
-      allow create: if isValidId(notificationId) && isSignedIn() && (
-        request.resource.data.fromUserId == request.auth.uid
-      );
-      allow update: if isValidId(notificationId) && isSignedIn() && (
-        resource.data.toUserId == request.auth.uid || 
-        resource.data.fromUserId == request.auth.uid
-      );
+      allow create: if isValidId(notificationId) && isSignedIn() &&
+        request.resource.data.fromUserId == request.auth.uid &&
+        request.resource.data.status == 'unread' &&
+        request.resource.data.keys().hasAll(['id', 'fromUserId', 'toUserId', 'type', 'status', 'createdAt']) &&
+        request.resource.data.keys().hasOnly(['id', 'fromUserId', 'toUserId', 'type', 'status', 'createdAt', 'message', 'contactUrl']);
+      allow update: if isValidId(notificationId) && isSignedIn() &&
+        resource.data.toUserId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+        request.resource.data.status in ['read', 'acted'];
       allow delete: if isValidId(notificationId) && isSignedIn() && (
         resource.data.toUserId == request.auth.uid || 
         resource.data.fromUserId == request.auth.uid
@@ -102,8 +154,8 @@ service cloud.firestore {
 
     // Test heartbeat connection
     match /test/{testId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow get: if isSignedIn() && testId == 'connection';
+      allow list, write: if false;
     }
   }
 }

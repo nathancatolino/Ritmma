@@ -4,12 +4,8 @@
  * 
  * Component BodyPainMap:
  * Integrated Medical Pain Atlas (Dr. Nathan v5)
- * - Official Dr. Nathan clinical art & masks (corpo-anterior, corpo-posterior, mao-direita, mao-esquerda, pe-direito, pe-esquerdo, wpi-anterior, wpi-posterior).
- * - 4 Specialized Clinical Instruments:
- *   1. Dor livre (geral): mapeamento de pontos, intensidade 0-10, características clínicas.
- *   2. WPI-19 (Fibromialgia ACR): 19 polígonos anatômicos oficiais com cálculo dinâmico (0 a 19) e indicador de dor difusa (WPI ≥ 7).
- *   3. DAS28 (Artrite reumatóide): 28 articulações clássicas (ombros, cotovelos, punhos, joelhos, 10 MCFs e 10 IFPs) com contagem de dor e edema.
- *   4. Artrite psoriásica & Enteses (PsA): articulações periféricas, enteses (Aquiles e fáscia plantar) e MTFs dos pés.
+ * - Mapeamento de dor livre e localização de sintomas.
+ * - Visualizações opcionais para articulações e enteses da artrite psoriásica.
  * - Modo Avançado (v5): Ponto focal, Área/Mancha circular translúcida, Linha de irradiação com seta direcional e Localização articular declarada.
  * - Suporte completo ao histórico de 14 dias, presets rápidos conscientes, persistência via DailyLog.bodyPainMap e DailyLog.advancedPainMarks.
  * - Tooltips em minúsculas com apenas a primeira letra maiúscula (formato sentença).
@@ -41,7 +37,6 @@ import {
   Sliders,
   X,
   Loader2,
-  Stethoscope,
   Layers,
   ArrowRight,
   Circle,
@@ -49,7 +44,7 @@ import {
   Move
 } from 'lucide-react';
 import { Tooltip, InfoTooltip } from './Tooltip';
-import { ATLAS_MASKS, WPI19_REGIONS, DAS28_JOINTS, AtlasMask, WpiRegion, Das28Joint } from '../data/atlasNathanV5Data';
+import { ATLAS_MASKS, AtlasMask } from '../data/atlasNathanV5Data';
 import { getAnatomicalLabelForCoord, getAnatomicalIrradiationPath } from '../data/anatomicalRouter';
 
 export interface BodyPainMapProps {
@@ -60,7 +55,7 @@ export interface BodyPainMapProps {
   isEmbedded?: boolean;
 }
 
-export type ClinicalInstrument = 'free' | 'wpi19' | 'das28' | 'psa' | 'advanced';
+export type ClinicalInstrument = 'free' | 'psa' | 'advanced';
 export type VisualScope = 'body' | 'hand' | 'foot' | 'all';
 export type AdvancedMode = 'point' | 'region' | 'radiation' | 'joint';
 
@@ -70,9 +65,7 @@ const ASSET_NAMES: Record<string, string> = {
   'mao-direita': 'Mão direita (dorso)',
   'mao-esquerda': 'Mão esquerda (dorso)',
   'pe-direito': 'Pé direito (dorso)',
-  'pe-esquerdo': 'Pé esquerdo (dorso)',
-  'wpi-anterior': 'Vista anterior (WPI)',
-  'wpi-posterior': 'Vista posterior (WPI)'
+  'pe-esquerdo': 'Pé esquerdo (dorso)'
 };
 
 const PAIN_QUALITIES = [
@@ -352,62 +345,6 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
     recalculateAndSave(updatedMap);
   };
 
-  // Toggle WPI 19 region
-  const handleToggleWpiRegion = (regionId: string) => {
-    const reg = WPI19_REGIONS.find((r) => r.id === regionId);
-    if (!reg) return;
-
-    const updatedMap = { ...currentPainMap };
-    const currentScore = updatedMap[regionId] || 0;
-    const newScore = currentScore > 0 ? 0 : 5;
-
-    triggerStatus(`Atualizando ${reg.label}...`, 'saving');
-
-    if (newScore === 0) {
-      delete updatedMap[regionId];
-    } else {
-      updatedMap[regionId] = newScore;
-    }
-
-    setSelectedStructureId(regionId);
-    recalculateAndSave(updatedMap);
-
-    setTimeout(() => {
-      triggerStatus(newScore > 0 ? `✓ ${reg.label} marcado no WPI` : `✓ ${reg.label} desmarcado`, 'saved');
-    }, 200);
-  };
-
-  // Toggle DAS28 joint (dor / edema)
-  const handleToggleDas28Joint = (jointId: string, type: 'tender' | 'swollen' = 'tender') => {
-    const joint = DAS28_JOINTS.find((j) => j.id === jointId);
-    if (!joint) return;
-
-    const updatedMap = { ...currentPainMap };
-    const key = type === 'swollen' ? `${jointId}_swollen` : jointId;
-    const isCurrentlyActive = (updatedMap[key] || 0) > 0;
-    const newScore = isCurrentlyActive ? 0 : 5;
-
-    triggerStatus(`Atualizando ${joint.label}...`, 'saving');
-
-    if (newScore === 0) {
-      delete updatedMap[key];
-    } else {
-      updatedMap[key] = newScore;
-    }
-
-    setSelectedStructureId(jointId);
-    recalculateAndSave(updatedMap);
-
-    setTimeout(() => {
-      triggerStatus(
-        newScore > 0 
-          ? `✓ ${joint.label} marcado (${type === 'swollen' ? 'edema' : 'dor'})` 
-          : `✓ ${joint.label} desmarcado`, 
-        'saved'
-      );
-    }, 200);
-  };
-
   // Click on anatomical silhouette in Free / Advanced mode
   const handleSvgSilhouetteClick = (asset: string, event: React.MouseEvent<SVGSVGElement>) => {
     const svg = event.currentTarget;
@@ -423,10 +360,6 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
     const x = Math.max(0, Math.min(mask.width, Math.round(q.x)));
     const y = Math.max(0, Math.min(mask.height, Math.round(q.y)));
 
-    if (instrument === 'wpi19') {
-      // In WPI mode, clicks handled by regions
-      return;
-    }
 
     if (advMode === 'radiation') {
       if (!pendingRadiation) {
@@ -675,39 +608,6 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
     setPresetDraft(null);
   };
 
-  // Real-time WPI-19 score
-  const wpiScore = useMemo(() => {
-    let score = 0;
-    WPI19_REGIONS.forEach((region) => {
-      if ((currentPainMap[region.id] || 0) > 0) {
-        score++;
-      }
-    });
-    return score;
-  }, [currentPainMap]);
-
-  // Real-time DAS28 tender joint count (0 to 28)
-  const das28Count = useMemo(() => {
-    let count = 0;
-    DAS28_JOINTS.forEach((joint) => {
-      if ((currentPainMap[joint.id] || 0) > 0) {
-        count++;
-      }
-    });
-    return count;
-  }, [currentPainMap]);
-
-  // Real-time DAS28 swollen joint count (0 to 28)
-  const das28SwollenCount = useMemo(() => {
-    let count = 0;
-    DAS28_JOINTS.forEach((joint) => {
-      if ((currentPainMap[`${joint.id}_swollen`] || 0) > 0) {
-        count++;
-      }
-    });
-    return count;
-  }, [currentPainMap]);
-
   // Stats for the currently selected day
   const currentDayStats = useMemo(() => {
     const entries = Object.entries(currentPainMap).filter(([, v]) => Number(v) > 0);
@@ -745,11 +645,6 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
 
   // Figures to render based on instrument and scope
   const activeFigures: string[] = useMemo(() => {
-    if (instrument === 'wpi19') {
-      if (viewFilter === 'front') return ['wpi-anterior'];
-      if (viewFilter === 'back') return ['wpi-posterior'];
-      return ['wpi-anterior', 'wpi-posterior'];
-    }
     if (scope === 'hand') {
       return ['mao-direita', 'mao-esquerda'];
     }
@@ -762,7 +657,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
     if (viewFilter === 'front') return ['corpo-anterior'];
     if (viewFilter === 'back') return ['corpo-posterior'];
     return ['corpo-anterior', 'corpo-posterior'];
-  }, [instrument, scope, viewFilter]);
+  }, [scope, viewFilter]);
 
   // Current selected mark details
   const selectedMark = useMemo(() => {
@@ -930,7 +825,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Mapeamento de dor com arte clínica original neutralizada, regiões WPI-19 e articulações DAS28.
+              Registre a localização e a intensidade da dor no mapa corporal.
             </p>
           </div>
 
@@ -973,7 +868,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
           </div>
         </div>
 
-        {/* CLINICAL INSTRUMENT SELECTOR TABS */}
+        {/* MAP MODES */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-slate-50 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800">
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
             <Tooltip title="Esquema clínico: dor livre" content="Mapeamento corporal global completo (0 a 10) sem restrição de critérios para registro integral de sintomas.">
@@ -991,51 +886,6 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
               >
                 <Layers className="w-3.5 h-3.5 text-teal-500" />
                 Dor livre (geral)
-              </button>
-            </Tooltip>
-
-            <Tooltip title="Esquema clínico: WPI-19 (fibromialgia)" content="19 regiões padronizadas do Colégio Americano de Reumatologia (ACR) com cálculo em tempo real do índice WPI (0 a 19).">
-              <button
-                type="button"
-                onClick={() => {
-                  setInstrument('wpi19');
-                  setScope('body');
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                  instrument === 'wpi19'
-                    ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-2xs border border-purple-200/60 dark:border-purple-900'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
-                WPI · 19 regiões
-                {wpiScore > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
-                    {wpiScore}/19
-                  </span>
-                )}
-              </button>
-            </Tooltip>
-
-            <Tooltip title="Esquema clínico: DAS28 (artrite reumatóide)" content="28 articulações clássicas avaliadas na artrite reumatóide: ombros, cotovelos, punhos, joelhos, 10 MCFs e 10 IFPs.">
-              <button
-                type="button"
-                onClick={() => {
-                  setInstrument('das28');
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                  instrument === 'das28'
-                    ? 'bg-white dark:bg-slate-900 text-rose-700 dark:text-rose-300 shadow-2xs border border-rose-200/60 dark:border-rose-900'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                <Stethoscope className="w-3.5 h-3.5 text-rose-500" />
-                DAS28 · 28 juntas
-                {das28Count > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                    {das28Count}/28
-                  </span>
-                )}
               </button>
             </Tooltip>
 
@@ -1075,8 +925,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
 
           {/* Scope Switcher */}
           <div className="flex items-center gap-1 self-end sm:self-center">
-            {instrument !== 'wpi19' && (
-              <div className="inline-flex bg-slate-200/70 dark:bg-slate-850 p-0.5 rounded-xl text-[11px] font-bold">
+            <div className="inline-flex bg-slate-200/70 dark:bg-slate-850 p-0.5 rounded-xl text-[11px] font-bold">
                 <button
                   type="button"
                   onClick={() => setScope('body')}
@@ -1121,8 +970,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                 >
                   Todas
                 </button>
-              </div>
-            )}
+            </div>
             <Tooltip title="Modo lista acessível" content="Exibe todas as regiões em formato de lista textual para acessibilidade por teclado ou leitor de tela.">
               <button
                 type="button"
@@ -1284,54 +1132,17 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
           </div>
         )}
 
-        {/* CLINICAL SUMMARY PILL STRIP */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        {/* DAILY PAIN SUMMARY */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-800 flex items-center justify-between">
             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Pontos ativos</span>
             <span className="text-sm font-black text-rose-600 dark:text-rose-400">{currentDayStats.count}</span>
           </div>
-
           <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-800 flex items-center justify-between">
             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Pico / Pior dor</span>
             <span className="text-sm font-black text-slate-800 dark:text-slate-100">
               {currentDayStats.worstVal > 0 ? `${currentDayStats.worstVal}/10` : '0/10'}
             </span>
-          </div>
-
-          <div className="bg-purple-50/60 dark:bg-purple-950/20 p-2.5 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-purple-700 dark:text-purple-300 font-bold uppercase">Escore WPI</span>
-              <InfoTooltip
-                title="Escore WPI (fibromialgia)"
-                content="Widespread Pain Index: pontua 19 regiões padronizadas do ACR. Escore ≥ 7 preenche o critério de dor difusa para fibromialgia."
-              />
-            </div>
-            <div className="text-right">
-              <span className={`text-sm font-black ${wpiScore >= 7 ? 'text-purple-700 dark:text-purple-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                {wpiScore}/19
-              </span>
-              <span className="text-[9px] block text-purple-600 dark:text-purple-400 font-semibold">
-                {wpiScore >= 7 ? 'Critério dor difusa' : 'Dor focal/moderada'}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-rose-50/60 dark:bg-rose-950/20 p-2.5 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-rose-700 dark:text-rose-300 font-bold uppercase">DAS28 (NAD)</span>
-              <InfoTooltip
-                title="Escore DAS28 (artrite reumatóide)"
-                content="Número de Articulações Dolorosas (NAD de 0 a 28) em ombros, cotovelos, punhos, joelhos, MCFs e IFPs."
-              />
-            </div>
-            <div className="text-right">
-              <span className={`text-sm font-black ${das28Count > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                {das28Count}/28
-              </span>
-              <span className="text-[9px] block text-rose-600 dark:text-rose-400 font-semibold">
-                {das28Count >= 10 ? 'Alta atividade' : das28Count >= 4 ? 'Moderada' : das28Count > 0 ? 'Leve' : 'Remissão'}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -1679,95 +1490,11 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                           <path
                             d={mask.path}
                             fill="transparent"
-                            style={{ cursor: instrument === 'wpi19' ? 'default' : 'crosshair' }}
-                            pointerEvents={instrument === 'wpi19' ? 'none' : 'auto'}
+                            style={{ cursor: 'crosshair' }}
+                            pointerEvents="auto"
                           />
 
-                          {/* 1. WPI-19 POLYGONS (WHEN IN WPI MODE) */}
-                          {instrument === 'wpi19' && WPI19_REGIONS.filter(r => r.asset === assetKey).map((reg) => {
-                            const isSelected = (currentPainMap[reg.id] || 0) > 0;
-                            const isActive = selectedStructureId === reg.id;
-
-                            return (
-                              <g key={reg.id} className="cursor-pointer">
-                                <path
-                                  d={reg.path}
-                                  fill={isSelected ? 'rgba(78, 135, 190, 0.45)' : 'transparent'}
-                                  stroke={isActive ? '#0284c7' : isSelected ? '#3e7bab' : 'rgba(100, 150, 200, 0.15)'}
-                                  strokeWidth={isActive ? 3 : isSelected ? 2.5 : 1}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleToggleWpiRegion(reg.id);
-                                  }}
-                                >
-                                  <title>{reg.label}</title>
-                                </path>
-
-                                {isSelected && (
-                                  <circle
-                                    cx={reg.x}
-                                    cy={reg.y}
-                                    r="9"
-                                    fill="#3e7bab"
-                                    stroke="white"
-                                    strokeWidth="2"
-                                    pointerEvents="none"
-                                  />
-                                )}
-                              </g>
-                            );
-                          })}
-
-                          {/* 2. DAS28 JOINTS (WHEN IN DAS28 MODE) */}
-                          {instrument === 'das28' && DAS28_JOINTS.filter(j => j.asset === assetKey).map((joint) => {
-                            const isTender = (currentPainMap[joint.id] || 0) > 0;
-                            const isSwollen = (currentPainMap[`${joint.id}_swollen`] || 0) > 0;
-                            const isSelected = selectedStructureId === joint.id;
-
-                            return (
-                              <g
-                                key={joint.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleDas28Joint(joint.id, 'tender');
-                                }}
-                                className="cursor-pointer group"
-                              >
-                                <circle cx={joint.x} cy={joint.y} r="16" fill="transparent" />
-                                {isSelected && (
-                                  <circle cx={joint.x} cy={joint.y} r="14" fill="none" stroke="#1FBCC4" strokeWidth="2.5" className="animate-pulse" />
-                                )}
-                                <circle
-                                  cx={joint.x}
-                                  cy={joint.y}
-                                  r={isTender || isSwollen ? 8 : 6}
-                                  fill={
-                                    isTender && isSwollen
-                                      ? '#d54778'
-                                      : isTender
-                                      ? '#ef8857'
-                                      : isSwollen
-                                      ? '#9a75c9'
-                                      : '#edf3f7'
-                                  }
-                                  stroke={isTender || isSwollen ? '#ffffff' : '#607e99'}
-                                  strokeWidth="1.8"
-                                />
-                                {(isTender || isSwollen) && (
-                                  <text
-                                    x={joint.x}
-                                    y={joint.y + 3}
-                                    textAnchor="middle"
-                                    className="text-[7px] font-black fill-white select-none pointer-events-none"
-                                  >
-                                    {isTender && isSwollen ? 'D+E' : isTender ? 'D' : 'E'}
-                                  </text>
-                                )}
-                              </g>
-                            );
-                          })}
-
-                          {/* 3. ADVANCED & FREE PAIN MARKS (POINTS, REGIONS, RADIATION) */}
+                          {/* ADVANCED & FREE PAIN MARKS (POINTS, REGIONS, RADIATION) */}
                           {currentMarks.filter(m => m.asset === assetKey || m.to?.asset === assetKey).map((m) => {
                             const isCurrentSelected = selectedMarkId === m.id;
                             const opacity = 0.15 + (m.intensity / 10) * 0.22;
@@ -1912,15 +1639,6 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                   <span className="w-2.5 h-2.5 bg-slate-400/50 rounded-full inline-block" /> Anatomia neutra
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 bg-[#4e82ba] rounded-full inline-block" /> Região WPI
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 bg-[#ef8857] rounded-full inline-block" /> Dor (DAS28)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 bg-[#9a75c9] rounded-full inline-block" /> Edema (DAS28)
-                </span>
-                <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 bg-[#e11d48] rounded-full inline-block animate-pulse" /> Dor intensa (7-10)
                 </span>
               </div>
@@ -2051,10 +1769,7 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                       ) : selectedStructureId ? (
                         <>
                           <Activity className="w-4 h-4 text-teal-500" />
-                          {WPI19_REGIONS.find(r => r.id === selectedStructureId)?.label || 
-                           DAS28_JOINTS.find(j => j.id === selectedStructureId)?.label || 
-                           BODY_REGIONS_LIST.find(b => b.id === selectedStructureId)?.label || 
-                           selectedStructureId}
+                          {BODY_REGIONS_LIST.find(b => b.id === selectedStructureId)?.label || selectedStructureId}
                         </>
                       ) : (
                         'Toque no mapa para avaliar'
@@ -2164,16 +1879,6 @@ export const BodyPainMap: React.FC<BodyPainMapProps> = ({
                 ) : (
                   <div className="space-y-2 py-1 text-xs text-slate-500 dark:text-slate-400">
                     <p>Toque diretamente no corpo ou nas articulações para avaliar a dor de hoje.</p>
-                    {instrument === 'wpi19' && (
-                      <div className="p-2.5 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-900 text-purple-900 dark:text-purple-200 text-[11px]">
-                        <strong>Regra do WPI:</strong> Marque cada região onde sentiu dor nos últimos 7 dias. O escore vai de 0 a 19.
-                      </div>
-                    )}
-                    {instrument === 'das28' && (
-                      <div className="p-2.5 bg-rose-50/70 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200 text-[11px]">
-                        <strong>Avaliação DAS28:</strong> Avalia ombros, cotovelos, punhos, joelhos e juntas dos dedos nas mãos.
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
