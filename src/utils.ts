@@ -400,7 +400,7 @@ export function genInsights(pd: PatientData, audience: 'patient' | 'professional
     } else if (status === 'pausa_infeccao') {
       out.push({
         ic: '⏸️',
-        text: 'Pausa Terapêutica por Infecção: A suspensão temporária de agentes imunobiológicos ajuda a combater o patógeno. Mantenha repouso absoluto e acompanhe para detectar possíveis rebotes inflamatórios após a melhora clínica.',
+        text: 'Registro de pausa de medicação durante infecção: confirmar qual medicamento foi pausado, a gravidade do quadro e a orientação recebida. A decisão de pausar ou retomar deve considerar o medicamento e a avaliação clínica. Repouso conforme os sintomas e a orientação da equipe responsável.',
         audience: 'professional'
       });
     } else {

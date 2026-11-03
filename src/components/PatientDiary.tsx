@@ -5110,7 +5110,7 @@ export const PatientDiary: React.FC<PatientDiaryProps> = ({
                 {patientData.continuousMeds && patientData.continuousMeds.length > 0 && (
                   <div className="p-3 bg-rose-500/5 rounded-lg border border-rose-500/10 text-[10.5px] text-rose-700 dark:text-rose-300 leading-normal font-medium flex items-start gap-1.5">
                     <ShieldAlert className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
-                    <span><strong>Observação para paciente em uso de medicação contínua</strong>: O uso de imunobiológicos ou imunossupressores em vigência de infecção ativa com febre geralmente requer a pausa temporária do medicamento de base. <strong>Sempre consulte seu profissional da saúde antes de alterar a terapia ou reiniciar o tratamento.</strong></span>
+                    <span><strong>Se estiver com febre ou sinais de infecção</strong>, entre em contato com a equipe que acompanha você para decidir sobre a próxima dose. A orientação depende do medicamento e da gravidade do quadro. <strong>Não pause nem reinicie o tratamento por conta própria.</strong></span>
                   </div>
                 )}
               </div>

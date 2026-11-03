@@ -394,7 +394,7 @@ export const DoctorView: React.FC<DoctorViewProps> = ({ data, account, onLogout,
     // Additional cross-behavior medical warnings and alerts
     const hasMedForgets = p.pd.dailyLogs.slice(-7).some((l) => l.forgotMedication === true);
     if (hasMedForgets) {
-      corrItems.push('Adesão Medicamentosa: Detetada falha de tomada ou esquecimento de fármaco nos últimos 7 dias. Flutuações na dosagem sérica de imunobiológicos ou neuromoduladores elevam em até 40% a incidência de flare-ups de dor de rebote [Ref 9].');
+      corrItems.push('Pendente de revisão científica: investigar se o esquecimento de medicamentos se associa a flares ou exacerbações de dor, considerando o fármaco e a doença. Não exibir estimativa de risco até essa verificação.');
     }
 
     const waterLogs = p.pd.dailyLogs.filter((l) => (l.waterIntake && l.waterIntake > 0) || l.waterSimple);
